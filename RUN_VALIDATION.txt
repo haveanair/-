@@ -1,1 +1,0 @@
-Trigger the temporary mGBA validation build with SDL frontend.
