@@ -23,7 +23,7 @@ jobs:
         run: |
           cmake -B mgba/build -S mgba -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_QT=OFF -DBUILD_SDL=OFF \
+            -DBUILD_QT=OFF -DBUILD_SDL=ON \
             -DBUILD_HEADLESS=ON -DUSE_LUA=ON \
             -DUSE_DEBUGGERS=ON -DUSE_GDB_STUB=OFF \
             -DBUILD_PYTHON=OFF -DBUILD_LIBRETRO=ON
@@ -32,7 +32,7 @@ jobs:
       - name: Collect
         run: |
           mkdir -p artifact
-          find mgba/build -type f \( -name 'mgba-headless' -o -name '*libretro*.so' -o -name 'libmgba.so*' \) -exec cp -L {} artifact/ \;
+          find mgba/build -type f \( -name 'mgba' -o -name 'mgba-headless' -o -name '*libretro*.so' -o -name 'libmgba.so*' \) -exec cp -L {} artifact/ \;
           find artifact -maxdepth 1 -type f -exec sha256sum {} \; | tee artifact/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
