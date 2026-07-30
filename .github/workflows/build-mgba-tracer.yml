@@ -1,0 +1,44 @@
+name: Build mGBA tracer
+
+on:
+  push:
+    paths:
+      - '.github/workflows/build-mgba-tracer.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git cmake ninja-build build-essential pkg-config \
+            libsdl2-dev libpng-dev zlib1g-dev libelf-dev libedit-dev
+      - name: Clone mGBA
+        run: git clone --depth 1 https://github.com/mgba-emu/mgba.git mgba
+      - name: Configure
+        run: |
+          cmake -S mgba -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DBUILD_QT=OFF \
+            -DBUILD_SDL=ON \
+            -DBUILD_GLES2=OFF \
+            -DBUILD_GLES3=OFF \
+            -DUSE_FFMPEG=OFF \
+            -DUSE_LIBZIP=OFF \
+            -DUSE_SQLITE3=OFF
+      - name: Build
+        run: cmake --build build --parallel 2
+      - name: Collect binaries
+        run: |
+          mkdir -p artifact
+          find build -maxdepth 3 -type f \( -name 'mgba' -o -name 'mgba-sdl' -o -name 'libmgba.so*' \) -exec cp -a {} artifact/ \;
+          cp -a mgba/src/platform/python/tests artifact/ 2>/dev/null || true
+          find artifact -maxdepth 2 -type f -print
+      - name: Upload tracer
+        uses: actions/upload-artifact@v4
+        with:
+          name: mgba-tracer-linux-x64
+          path: artifact
+          if-no-files-found: error
