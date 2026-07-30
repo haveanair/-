@@ -1,0 +1,37 @@
+name: Build mGBA validation tools
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends git cmake ninja-build build-essential \
+            libpng-dev zlib1g-dev libedit-dev libelf-dev libsqlite3-dev \
+            libepoxy-dev libsdl2-dev liblua5.4-dev lua5.4
+      - name: Checkout mGBA
+        run: git clone --depth 1 https://github.com/mgba-emu/mgba.git mgba
+      - name: Configure
+        run: |
+          cmake -B mgba/build -S mgba -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_QT=OFF -DBUILD_SDL=OFF \
+            -DBUILD_HEADLESS=ON -DUSE_LUA=ON \
+            -DUSE_DEBUGGERS=ON -DUSE_GDB_STUB=OFF \
+            -DBUILD_PYTHON=OFF -DBUILD_LIBRETRO=ON
+      - name: Build
+        run: cmake --build mgba/build
+      - name: Collect
+        run: |
+          mkdir -p artifact
+          find mgba/build -type f \( -name 'mgba-headless' -o -name '*libretro*.so' -o -name 'libmgba.so*' \) -exec cp -L {} artifact/ \;
+          find artifact -maxdepth 1 -type f -exec sha256sum {} \; | tee artifact/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mgba-validation-linux-x64
+          path: artifact/
+          retention-days: 1
