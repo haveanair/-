@@ -30,36 +30,47 @@ jobs:
           sudo add-apt-repository -y ppa:c.falco/mame
           sudo apt-get update
           sudo apt-get install -y mame mame-data
-          /usr/games/mame -version
+          wrapper=/usr/games/mame
+          realbin=/usr/lib/mame/mame
+          file "$wrapper" "$realbin"
+          sed -n '1,80p' "$wrapper" || true
+          "$wrapper" -version
+          "$realbin" -version
           mkdir -p mame288/root/usr/games mame288/root/usr/share/games mame288/root/usr/lib mame288/root/lib mame288/root/lib64
-          cp -a /usr/games/mame mame288/root/usr/games/
-          [ ! -d /usr/share/games/mame ] || cp -a /usr/share/games/mame mame288/root/usr/share/games/
-          [ ! -d /usr/lib/mame ] || cp -a /usr/lib/mame mame288/root/usr/lib/
-          ldd /usr/games/mame | tee mame288/ldd.txt
+          cp -a "$wrapper" mame288/root/usr/games/
+          cp -a /usr/lib/mame mame288/root/usr/lib/
+          cp -a /usr/share/games/mame mame288/root/usr/share/games/
+          ldd "$realbin" | tee mame288/ldd.txt
           python3 - <<'PY'
           from pathlib import Path
           import re, shutil, subprocess
           root=Path('mame288/root')
-          out=subprocess.check_output(['ldd','/usr/games/mame'], text=True)
+          realbin='/usr/lib/mame/mame'
+          out=subprocess.check_output(['ldd',realbin], text=True)
           paths=set(re.findall(r'(/[^\s()]+)', out))
-          paths.update(['/lib64/ld-linux-x86-64.so.2'])
+          paths.add('/lib64/ld-linux-x86-64.so.2')
           for s in sorted(paths):
               p=Path(s)
               if not p.exists():
                   continue
               dst=root / p.relative_to('/')
               dst.parent.mkdir(parents=True, exist_ok=True)
+              target=p.resolve()
+              realdst=root / target.relative_to('/')
+              realdst.parent.mkdir(parents=True, exist_ok=True)
+              if not realdst.exists():
+                  shutil.copy2(target,realdst)
               if p.is_symlink():
-                  target=p.resolve()
-                  shutil.copy2(target, dst.parent/target.name)
                   if dst.exists() or dst.is_symlink(): dst.unlink()
-                  dst.symlink_to(target.name)
-              else:
+                  rel=Path(shutil.os.path.relpath(realdst, dst.parent))
+                  dst.symlink_to(rel)
+              elif dst != realdst and not dst.exists():
                   shutil.copy2(p,dst)
           PY
           find mame288/root -type f -o -type l | sort > mame288/files.txt
           du -sh mame288/root
       - name: Upload MAME 0.288
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: mame-0.288-linux
