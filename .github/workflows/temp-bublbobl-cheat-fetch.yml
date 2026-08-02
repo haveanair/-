@@ -1,0 +1,46 @@
+name: Temporary Bubble Bobble Cheat Fetch
+
+on:
+  push:
+    branches:
+      - temp-fbneo-runtime-20260802
+    paths:
+      - '.github/workflows/temp-bublbobl-cheat-fetch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fetch-cheat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch and extract MAME cheat database
+        run: |
+          set -euxo pipefail
+          mkdir -p cheat-result
+          for u in \
+            'https://www.mamecheat.co.uk/cheat.7z' \
+            'https://www.mamecheat.co.uk/cheat0240.7z' \
+            'https://www.mamecheat.co.uk/cheat0280.7z'; do
+            if curl -L --fail --retry 3 -o /tmp/cheat.7z "$u"; then break; fi
+          done
+          7z l /tmp/cheat.7z | head -100
+          7z x -y /tmp/cheat.7z -ocheat-result
+          find cheat-result -iname 'bublbobl.xml' -o -iname 'boblbobl.xml' -o -iname '*bubl*xml' | sort
+          find cheat-result -type f -iname '*bubl*xml' -exec cp -v {} cheat-result/ \; || true
+      - name: Upload cheat files
+        uses: actions/upload-artifact@v4
+        with:
+          name: bublbobl-cheat-files
+          path: cheat-result
+          retention-days: 1
+      - name: Record run id
+        run: |
+          mkdir -p .runtime
+          printf '%s\n' '${{ github.run_id }}' > .runtime/cheat-run-id.txt
+          git config user.name 'temporary-cheat-fetch'
+          git config user.email 'actions@users.noreply.github.com'
+          git add .runtime/cheat-run-id.txt
+          git commit -m 'Record temporary cheat fetch run id' || exit 0
+          git push origin HEAD:temp-fbneo-runtime-20260802
