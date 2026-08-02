@@ -15,18 +15,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Download official FBNeo Linux SDL2 runtime
+      - name: Download official FBNeo and SDL2_image runtime
         run: |
           set -euxo pipefail
+          mkdir -p runtime-bundle
           curl -L --fail --retry 5 --retry-delay 2 \
-            -o linux-sdl2-x86_64.zip \
+            -o runtime-bundle/linux-sdl2-x86_64.zip \
             https://github.com/finalburnneo/FBNeo/releases/download/latest/linux-sdl2-x86_64.zip
-          unzip -t linux-sdl2-x86_64.zip
-      - name: Upload runtime artifact
+          unzip -t runtime-bundle/linux-sdl2-x86_64.zip
+          sudo apt-get update
+          cd /tmp
+          apt-get download libsdl2-image-2.0-0
+          dpkg-deb -x libsdl2-image-2.0-0_*.deb "$GITHUB_WORKSPACE/runtime-bundle/sdl2-image"
+          find "$GITHUB_WORKSPACE/runtime-bundle" -type f -o -type l
+      - name: Upload complete runtime artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fbneo-linux-sdl2-x86_64
-          path: linux-sdl2-x86_64.zip
+          name: fbneo-linux-runtime-complete
+          path: runtime-bundle
           retention-days: 1
       - name: Record workflow run id
         run: |
