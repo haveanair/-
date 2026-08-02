@@ -1,0 +1,50 @@
+name: Temporary MAME Libraries Fetch
+
+on:
+  push:
+    branches:
+      - temp-fbneo-runtime-20260802
+    paths:
+      - '.github/workflows/temp-mame-libs.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fetch-libs:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record run id first
+        run: |
+          mkdir -p .runtime
+          printf '%s\n' '${{ github.run_id }}' > .runtime/mame-libs-run-id.txt
+          git config user.name 'temporary-mame-fetch'
+          git config user.email 'actions@users.noreply.github.com'
+          git add .runtime/mame-libs-run-id.txt
+          git commit -m 'Record temporary MAME libraries run id' || true
+          git push origin HEAD:temp-fbneo-runtime-20260802
+      - name: Download missing runtime libraries
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          mkdir -p mame-libs/debs mame-libs/root
+          cd /tmp
+          apt-get download \
+            libpugixml1v5 \
+            libjpeg-turbo8 \
+            libflac12t64 \
+            libutf8proc3 \
+            libportmidi0 \
+            libsdl2-ttf-2.0-0
+          cp -v ./*.deb "$GITHUB_WORKSPACE/mame-libs/debs/"
+          for deb in "$GITHUB_WORKSPACE"/mame-libs/debs/*.deb; do
+            dpkg-deb -x "$deb" "$GITHUB_WORKSPACE/mame-libs/root"
+          done
+          find "$GITHUB_WORKSPACE/mame-libs/root" -type f -o -type l | sort
+      - name: Upload MAME libraries
+        uses: actions/upload-artifact@v4
+        with:
+          name: mame-ubuntu-libraries
+          path: mame-libs
+          retention-days: 1
