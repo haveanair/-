@@ -1,0 +1,41 @@
+name: Temporary SDL2 Image Runtime Fetch
+
+on:
+  push:
+    branches:
+      - temp-fbneo-runtime-20260802
+    paths:
+      - '.github/workflows/temp-sdl2-image-runtime.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fetch-library:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download SDL2_image runtime package
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          cd /tmp
+          apt-get download libsdl2-image-2.0-0
+          mkdir -p "$GITHUB_WORKSPACE/sdl2-image-runtime"
+          dpkg-deb -x libsdl2-image-2.0-0_*.deb "$GITHUB_WORKSPACE/sdl2-image-runtime"
+          find "$GITHUB_WORKSPACE/sdl2-image-runtime" -type f -o -type l
+      - name: Upload runtime library
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdl2-image-runtime
+          path: sdl2-image-runtime
+          retention-days: 1
+      - name: Record workflow run id
+        run: |
+          mkdir -p .runtime
+          printf '%s\n' '${{ github.run_id }}' > .runtime/sdl2image-run-id.txt
+          git config user.name 'temporary-runtime-fetch'
+          git config user.email 'actions@users.noreply.github.com'
+          git add .runtime/sdl2image-run-id.txt
+          git commit -m 'Record temporary SDL2_image run id' || exit 0
+          git push origin HEAD:temp-fbneo-runtime-20260802
