@@ -1,0 +1,49 @@
+name: Temporary MAME 0.288 Linux Fetch
+
+on:
+  push:
+    branches:
+      - temp-fbneo-runtime-20260802
+    paths:
+      - '.github/workflows/temp-mame288-fetch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fetch-mame288:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record run id first
+        run: |
+          mkdir -p .runtime
+          printf '%s\n' '${{ github.run_id }}' > .runtime/mame288-run-id.txt
+          git config user.name 'temporary-mame-fetch'
+          git config user.email 'actions@users.noreply.github.com'
+          git add .runtime/mame288-run-id.txt
+          git commit -m 'Record temporary MAME 0.288 run id' || true
+          git push origin HEAD:temp-fbneo-runtime-20260802
+      - name: Download official MAME 0.288 Linux package
+        run: |
+          set -euxo pipefail
+          mkdir -p mame288
+          urls=(
+            'https://downloads.sourceforge.net/project/mame/mame/0.288/mame0288lx.zip'
+            'https://sourceforge.net/projects/mame/files/mame/0.288/mame0288lx.zip/download'
+          )
+          ok=0
+          for url in "${urls[@]}"; do
+            if curl -L --fail --retry 5 --retry-delay 3 -A 'Mozilla/5.0' "$url" -o mame288/mame0288lx.zip; then ok=1; break; fi
+          done
+          test "$ok" = 1
+          unzip -t mame288/mame0288lx.zip
+          unzip -q mame288/mame0288lx.zip -d mame288/root
+          find mame288/root -maxdepth 3 -type f | head -100
+          find mame288/root -type f -name 'mame*' -exec file {} \; > mame288/files.txt || true
+      - name: Upload MAME 0.288
+        uses: actions/upload-artifact@v4
+        with:
+          name: mame-0.288-linux
+          path: mame288
+          retention-days: 1
