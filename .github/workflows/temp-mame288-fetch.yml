@@ -24,23 +24,41 @@ jobs:
           git add .runtime/mame288-run-id.txt
           git commit -m 'Record temporary MAME 0.288 run id' || true
           git push origin HEAD:temp-fbneo-runtime-20260802
-      - name: Download official MAME 0.288 Linux package
+      - name: Install and bundle MAME 0.288 for Ubuntu 24.04
         run: |
           set -euxo pipefail
-          mkdir -p mame288
-          urls=(
-            'https://downloads.sourceforge.net/project/mame/mame/0.288/mame0288lx.zip'
-            'https://sourceforge.net/projects/mame/files/mame/0.288/mame0288lx.zip/download'
-          )
-          ok=0
-          for url in "${urls[@]}"; do
-            if curl -L --fail --retry 5 --retry-delay 3 -A 'Mozilla/5.0' "$url" -o mame288/mame0288lx.zip; then ok=1; break; fi
-          done
-          test "$ok" = 1
-          unzip -t mame288/mame0288lx.zip
-          unzip -q mame288/mame0288lx.zip -d mame288/root
-          find mame288/root -maxdepth 3 -type f | head -100
-          find mame288/root -type f -name 'mame*' -exec file {} \; > mame288/files.txt || true
+          sudo add-apt-repository -y ppa:c.falco/mame
+          sudo apt-get update
+          sudo apt-get install -y mame mame-data
+          /usr/games/mame -version
+          mkdir -p mame288/root/usr/games mame288/root/usr/share/games mame288/root/usr/lib mame288/root/lib mame288/root/lib64
+          cp -a /usr/games/mame mame288/root/usr/games/
+          [ ! -d /usr/share/games/mame ] || cp -a /usr/share/games/mame mame288/root/usr/share/games/
+          [ ! -d /usr/lib/mame ] || cp -a /usr/lib/mame mame288/root/usr/lib/
+          ldd /usr/games/mame | tee mame288/ldd.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, shutil, subprocess
+          root=Path('mame288/root')
+          out=subprocess.check_output(['ldd','/usr/games/mame'], text=True)
+          paths=set(re.findall(r'(/[^\s()]+)', out))
+          paths.update(['/lib64/ld-linux-x86-64.so.2'])
+          for s in sorted(paths):
+              p=Path(s)
+              if not p.exists():
+                  continue
+              dst=root / p.relative_to('/')
+              dst.parent.mkdir(parents=True, exist_ok=True)
+              if p.is_symlink():
+                  target=p.resolve()
+                  shutil.copy2(target, dst.parent/target.name)
+                  if dst.exists() or dst.is_symlink(): dst.unlink()
+                  dst.symlink_to(target.name)
+              else:
+                  shutil.copy2(p,dst)
+          PY
+          find mame288/root -type f -o -type l | sort > mame288/files.txt
+          du -sh mame288/root
       - name: Upload MAME 0.288
         uses: actions/upload-artifact@v4
         with:
