@@ -29,7 +29,7 @@ jobs:
           set -euxo pipefail
           mkdir -p marp
           url='https://replay.marpirc.net/index.cgi?mode=frames_search&short=%5Ebublbobl%24&table=y&per_game=1000&tourn=0&maxlines=9999'
-          curl -A 'Mozilla/5.0' -L --fail --retry 5 --retry-delay 2 "$url" -o marp/listing.html
+          curl -k -A 'Mozilla/5.0' -L --fail --retry 5 --retry-delay 2 "$url" -o marp/listing.html
           python3 - <<'PY'
           from pathlib import Path
           from urllib.parse import urljoin
@@ -39,7 +39,7 @@ jobs:
           for q,u in re.findall(r'href=(?:"([^"]+)"|\'([^\']+)\')', html, flags=re.I):
               u=q or u
               full=urljoin('https://replay.marpirc.net/',u)
-              if any(x in full.lower() for x in ('.zip','.inp','download','getfile','fetch')):
+              if any(x in full.lower() for x in ('.zip','.inp','download','getfile','fetch','getinp')):
                   links.append(full)
           Path('marp/links.txt').write_text('\n'.join(dict.fromkeys(links))+'\n')
           print('\n'.join(dict.fromkeys(links)))
@@ -48,11 +48,12 @@ jobs:
           while IFS= read -r link; do
             [ -n "$link" ] || continue
             i=$((i+1))
-            curl -A 'Mozilla/5.0' -L --fail --retry 3 --retry-delay 2 "$link" -o "marp/file_${i}" || true
+            curl -k -A 'Mozilla/5.0' -L --fail --retry 3 --retry-delay 2 "$link" -o "marp/file_${i}" || true
           done < marp/links.txt
           file marp/* > marp/files.txt || true
           ls -lah marp
       - name: Upload MARP files
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: marp-bublbobl-files
