@@ -1,0 +1,45 @@
+name: Temporary MAME Runtime Fetch
+
+on:
+  push:
+    branches:
+      - temp-fbneo-runtime-20260802
+    paths:
+      - '.github/workflows/temp-mame-runtime.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fetch-mame:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download MAME packages
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          mkdir -p mame-runtime/debs
+          cd /tmp
+          apt-get download mame mame-data
+          cp -v mame_*.deb mame-data_*.deb "$GITHUB_WORKSPACE/mame-runtime/debs/"
+          for deb in "$GITHUB_WORKSPACE"/mame-runtime/debs/*.deb; do
+            dpkg-deb -x "$deb" "$GITHUB_WORKSPACE/mame-runtime/root"
+          done
+          "$GITHUB_WORKSPACE/mame-runtime/root/usr/games/mame" -help > "$GITHUB_WORKSPACE/mame-runtime/mame-help.txt" || true
+          ldd "$GITHUB_WORKSPACE/mame-runtime/root/usr/games/mame" > "$GITHUB_WORKSPACE/mame-runtime/mame-ldd.txt" || true
+      - name: Upload MAME runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: mame-ubuntu-runtime
+          path: mame-runtime
+          retention-days: 1
+      - name: Record run id
+        run: |
+          mkdir -p .runtime
+          printf '%s\n' '${{ github.run_id }}' > .runtime/mame-run-id.txt
+          git config user.name 'temporary-mame-fetch'
+          git config user.email 'actions@users.noreply.github.com'
+          git add .runtime/mame-run-id.txt
+          git commit -m 'Record temporary MAME run id' || exit 0
+          git push origin HEAD:temp-fbneo-runtime-20260802
