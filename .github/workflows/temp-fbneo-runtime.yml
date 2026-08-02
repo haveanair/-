@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Download official FBNeo and SDL2_image runtime
+      - name: Download official FBNeo and runtime libraries
         run: |
           set -euxo pipefail
           mkdir -p runtime-bundle
@@ -25,8 +25,9 @@ jobs:
           unzip -t runtime-bundle/linux-sdl2-x86_64.zip
           sudo apt-get update
           cd /tmp
-          apt-get download libsdl2-image-2.0-0
-          dpkg-deb -x libsdl2-image-2.0-0_*.deb "$GITHUB_WORKSPACE/runtime-bundle/sdl2-image"
+          apt-get download libsdl2-image-2.0-0 libjpeg-turbo8
+          dpkg-deb -x libsdl2-image-2.0-0_*.deb "$GITHUB_WORKSPACE/runtime-bundle/libs"
+          dpkg-deb -x libjpeg-turbo8_*.deb "$GITHUB_WORKSPACE/runtime-bundle/libs"
           find "$GITHUB_WORKSPACE/runtime-bundle" -type f -o -type l
       - name: Upload complete runtime artifact
         uses: actions/upload-artifact@v4
