@@ -12,28 +12,37 @@ jobs:
       - name: Install MAME 0.288
         run: |
           apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends mame mame-data ca-certificates tar gzip coreutils
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends mame mame-data ca-certificates tar gzip coreutils file
           /usr/games/mame -version
-      - name: Collect portable runtime
+      - name: Collect verified portable runtime
         run: |
           set -eux
           mkdir -p artifact/bin artifact/lib artifact/share artifact/etc
-          cp /usr/lib/mame/mame artifact/bin/mame
+          stat -c 'SOURCE size=%s blocks=%b' /usr/lib/mame/mame
+          file /usr/lib/mame/mame
+          sha256sum /usr/lib/mame/mame | tee /tmp/source.sha256
+          cp --sparse=never /usr/lib/mame/mame artifact/bin/mame
+          stat -c 'COPY size=%s blocks=%b' artifact/bin/mame
+          file artifact/bin/mame
+          sha256sum artifact/bin/mame | tee /tmp/copy.sha256
+          test "$(cut -d' ' -f1 /tmp/source.sha256)" = "$(cut -d' ' -f1 /tmp/copy.sha256)"
           cp /usr/lib/mame/*.default artifact/etc/ || true
           ldd /usr/lib/mame/mame | awk '{for (i=1;i<=NF;i++) if ($i ~ /^\//) print $i}' | sort -u > /tmp/mame-libs.txt
-          while read -r lib; do [ -n "$lib" ] && cp -L "$lib" artifact/lib/; done < /tmp/mame-libs.txt
-          SDL3=$(find /usr/lib /lib -type f -name 'libSDL3.so*' 2>/dev/null | head -n 1 || true)
+          while read -r lib; do [ -n "$lib" ] && cp -L --sparse=never "$lib" artifact/lib/; done < /tmp/mame-libs.txt
+          SDL3=$(find /usr/lib /lib -type f -name 'libSDL3.so.*' 2>/dev/null | head -n 1 || true)
           if [ -n "$SDL3" ]; then
-            cp -L "$SDL3" artifact/lib/
+            cp -L --sparse=never "$SDL3" artifact/lib/
+            SDL3BASE=$(basename "$SDL3")
+            ln -sf "$SDL3BASE" artifact/lib/libSDL3.so.0
             ldd "$SDL3" | awk '{for (i=1;i<=NF;i++) if ($i ~ /^\//) print $i}' | sort -u > /tmp/sdl3-libs.txt
-            while read -r lib; do [ -n "$lib" ] && cp -L "$lib" artifact/lib/; done < /tmp/sdl3-libs.txt
+            while read -r lib; do [ -n "$lib" ] && cp -L --sparse=never "$lib" artifact/lib/; done < /tmp/sdl3-libs.txt
           fi
-          for extra in /usr/lib/x86_64-linux-gnu/libdecor-0.so* /usr/lib/x86_64-linux-gnu/libdecor/plugins-1/*.so; do [ -e "$extra" ] && cp -L "$extra" artifact/lib/ || true; done
+          for extra in /usr/lib/x86_64-linux-gnu/libdecor-0.so* /usr/lib/x86_64-linux-gnu/libdecor/plugins-1/*.so; do [ -e "$extra" ] && cp -L --sparse=never "$extra" artifact/lib/ || true; done
           if [ -d /usr/share/games/mame ]; then cp -a /usr/share/games/mame artifact/share/mame; fi
           printf '%s\n' '#!/bin/sh' 'DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)' 'LOADER=$(find "$DIR/lib" -maxdepth 1 -name "ld-linux*.so*" | head -n 1)' 'if [ -n "$LOADER" ]; then exec "$LOADER" --library-path "$DIR/lib" "$DIR/bin/mame" "$@"; else LD_LIBRARY_PATH="$DIR/lib" exec "$DIR/bin/mame" "$@"; fi' > artifact/run-mame.sh
           chmod +x artifact/run-mame.sh
-          (cd artifact && sha256sum bin/mame lib/* > SHA256SUMS.txt)
-          tar -C artifact -czf mame-0.288-debian-forky-x86_64-portable.tar.gz .
+          (cd artifact && sha256sum bin/mame lib/* > SHA256SUMS.txt && stat -c 'MAME_SIZE=%s' bin/mame > BUILD_INFO.txt && bin/mame -version >> BUILD_INFO.txt)
+          tar --format=posix -C artifact -czf mame-0.288-debian-forky-x86_64-portable.tar.gz .
           sha256sum mame-0.288-debian-forky-x86_64-portable.tar.gz > mame-0.288-debian-forky-x86_64-portable.tar.gz.sha256
       - uses: actions/upload-artifact@v4
         with:
