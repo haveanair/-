@@ -17,12 +17,15 @@ jobs:
       - name: Collect portable runtime
         run: |
           set -eux
-          mkdir -p artifact/bin artifact/share
-          cp /usr/games/mame artifact/bin/mame
+          mkdir -p artifact/bin artifact/lib artifact/share artifact/etc
+          cp /usr/lib/mame/mame artifact/bin/mame
+          cp /usr/lib/mame/*.default artifact/etc/ || true
+          ldd /usr/lib/mame/mame | awk '{for (i=1;i<=NF;i++) if ($i ~ /^\//) print $i}' | sort -u > /tmp/mame-libs.txt
+          while read -r lib; do [ -n "$lib" ] && cp -L "$lib" artifact/lib/; done < /tmp/mame-libs.txt
           if [ -d /usr/share/games/mame ]; then cp -a /usr/share/games/mame artifact/share/mame; fi
-          printf '%s\n' '#!/bin/sh' 'DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)' 'exec "$DIR/bin/mame" "$@"' > artifact/run-mame.sh
+          printf '%s\n' '#!/bin/sh' 'DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)' 'LOADER=$(find "$DIR/lib" -maxdepth 1 -name "ld-linux*.so*" | head -n 1)' 'if [ -n "$LOADER" ]; then exec "$LOADER" --library-path "$DIR/lib" "$DIR/bin/mame" "$@"; else LD_LIBRARY_PATH="$DIR/lib" exec "$DIR/bin/mame" "$@"; fi' > artifact/run-mame.sh
           chmod +x artifact/run-mame.sh
-          (cd artifact && sha256sum bin/mame > SHA256SUMS.txt)
+          (cd artifact && sha256sum bin/mame lib/* > SHA256SUMS.txt)
           tar -C artifact -czf mame-0.288-debian-forky-x86_64-portable.tar.gz .
           sha256sum mame-0.288-debian-forky-x86_64-portable.tar.gz > mame-0.288-debian-forky-x86_64-portable.tar.gz.sha256
       - uses: actions/upload-artifact@v4
