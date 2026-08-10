@@ -22,6 +22,13 @@ jobs:
           cp /usr/lib/mame/*.default artifact/etc/ || true
           ldd /usr/lib/mame/mame | awk '{for (i=1;i<=NF;i++) if ($i ~ /^\//) print $i}' | sort -u > /tmp/mame-libs.txt
           while read -r lib; do [ -n "$lib" ] && cp -L "$lib" artifact/lib/; done < /tmp/mame-libs.txt
+          SDL3=$(find /usr/lib /lib -type f -name 'libSDL3.so*' 2>/dev/null | head -n 1 || true)
+          if [ -n "$SDL3" ]; then
+            cp -L "$SDL3" artifact/lib/
+            ldd "$SDL3" | awk '{for (i=1;i<=NF;i++) if ($i ~ /^\//) print $i}' | sort -u > /tmp/sdl3-libs.txt
+            while read -r lib; do [ -n "$lib" ] && cp -L "$lib" artifact/lib/; done < /tmp/sdl3-libs.txt
+          fi
+          for extra in /usr/lib/x86_64-linux-gnu/libdecor-0.so* /usr/lib/x86_64-linux-gnu/libdecor/plugins-1/*.so; do [ -e "$extra" ] && cp -L "$extra" artifact/lib/ || true; done
           if [ -d /usr/share/games/mame ]; then cp -a /usr/share/games/mame artifact/share/mame; fi
           printf '%s\n' '#!/bin/sh' 'DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)' 'LOADER=$(find "$DIR/lib" -maxdepth 1 -name "ld-linux*.so*" | head -n 1)' 'if [ -n "$LOADER" ]; then exec "$LOADER" --library-path "$DIR/lib" "$DIR/bin/mame" "$@"; else LD_LIBRARY_PATH="$DIR/lib" exec "$DIR/bin/mame" "$@"; fi' > artifact/run-mame.sh
           chmod +x artifact/run-mame.sh
