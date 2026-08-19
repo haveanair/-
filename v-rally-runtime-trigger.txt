@@ -1,2 +1,2 @@
 Temporary trigger for isolated mGBA runtime used in V-Rally execution verification. No ROM data is stored here.
-Chunked job-log transfer trigger: 2026-08-19 22:15 KST.
+Fetch-safe chunk trigger: 2026-08-19 22:26 KST.
