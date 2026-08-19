@@ -1,2 +1,2 @@
 Temporary trigger for isolated mGBA runtime used in V-Rally execution verification. No ROM data is stored here.
-Libretro build rerun: 2026-08-19 14:26 KST.
+Runtime staging rerun: 2026-08-19 14:31 KST.
