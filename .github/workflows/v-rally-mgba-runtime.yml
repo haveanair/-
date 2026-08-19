@@ -9,23 +9,27 @@ permissions:
   contents: read
 
 jobs:
-  artifact-transfer:
+  dump-runtime-segments:
+    strategy:
+      fail-fast: false
+      matrix:
+        segment: [0,1,2,3,4,5,6,7,8,9,10]
     runs-on: ubuntu-22.04
     env:
       GH_TOKEN: ${{ github.token }}
+      SEG_BYTES: 24000
     steps:
-      - name: Reassemble verified mGBA runtime
+      - name: Emit verified mGBA runtime segment
         shell: bash
         run: |
           set -euo pipefail
-          git clone --depth 1 --branch v-rally-mgba-trigger "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo
+          git clone --depth 1 --branch v-rally-mgba-trigger "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo >/dev/null 2>&1
           cat repo/.v-rally-runtime/minimal/chunk_* > minimal.b64
           base64 -d minimal.b64 > mgba_minimal.so.xz
           test "$(sha256sum mgba_minimal.so.xz | awk '{print $1}')" = "ba40fc443bdcf8e6ef12e50c5332a779014a9e44499d00bcb942d39ac6ad57d3"
-      - name: Upload runtime artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: v-rally-mgba-runtime
-          path: mgba_minimal.so.xz
-          compression-level: 0
-          retention-days: 1
+          IDX=${{ matrix.segment }}
+          SIZE=$(stat -c %s mgba_minimal.so.xz)
+          echo "SEGMENT_META index=${IDX} total_size=${SIZE} segment_bytes=${SEG_BYTES}"
+          printf 'SEGMENT_DATA_%02d=' "$IDX"
+          dd if=mgba_minimal.so.xz bs=${SEG_BYTES} skip=${IDX} count=1 status=none | base64 -w0
+          echo
