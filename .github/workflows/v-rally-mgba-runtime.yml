@@ -6,68 +6,27 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  build-minimal-gba-core:
+  publish-runtime-temporarily:
     runs-on: ubuntu-22.04
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Build stripped GBA-only mGBA 0.10.5 libretro core and stage transfer chunks
+      - name: Reconstruct mGBA core and publish only the open-source runtime temporarily
         shell: bash
         run: |
           set -euo pipefail
-          git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" outrepo
-          git -C outrepo checkout v-rally-mgba-trigger
-          if git -C outrepo log -1 --pretty=%s | grep -q '^runtime-minimal:'; then
-            echo 'Minimal runtime already staged.'
-            exit 0
-          fi
-          git clone --depth 1 --branch 0.10.5 https://github.com/mgba-emu/mgba.git src
-          cmake -S src -B build \
-            -DBUILD_LIBRETRO=ON \
-            -DM_CORE_GBA=ON \
-            -DM_CORE_GB=OFF \
-            -DBUILD_QT=OFF \
-            -DBUILD_SDL=OFF \
-            -DDISABLE_FRONTENDS=ON \
-            -DUSE_DEBUGGERS=OFF \
-            -DUSE_GDB_STUB=OFF \
-            -DUSE_EDITLINE=OFF \
-            -DUSE_FFMPEG=OFF \
-            -DUSE_LUA=OFF \
-            -DENABLE_SCRIPTING=OFF \
-            -DUSE_DISCORD_RPC=OFF \
-            -DUSE_SQLITE3=OFF \
-            -DUSE_ELF=OFF \
-            -DUSE_LIBZIP=OFF \
-            -DUSE_MINIZIP=OFF \
-            -DUSE_LZMA=OFF \
-            -DUSE_PNG=OFF \
-            -DBUILD_GL=OFF \
-            -DBUILD_GLES2=OFF \
-            -DBUILD_GLES3=OFF \
-            -DSKIP_LIBRARY=ON \
-            -DBUILD_SHARED=OFF \
-            -DCMAKE_BUILD_TYPE=MinSizeRel
-          cmake --build build -j2 --target mgba_libretro
-          CORE=$(find build -type f -name '*libretro*.so' | head -1)
-          test -n "$CORE"
-          cp "$CORE" mgba_libretro.so
-          strip --strip-unneeded mgba_libretro.so
-          xz -9 -k mgba_libretro.so
-          echo '--- minimal sizes/hashes ---'
-          stat -c '%s %n' mgba_libretro.so mgba_libretro.so.xz
-          sha256sum mgba_libretro.so mgba_libretro.so.xz
-          rm -rf outrepo/.v-rally-runtime/minimal
-          mkdir -p outrepo/.v-rally-runtime/minimal
-          base64 -w 76 mgba_libretro.so.xz > transfer.b64
-          split -b 6000 -d -a 3 transfer.b64 outrepo/.v-rally-runtime/minimal/chunk_
-          wc -l -c transfer.b64
-          find outrepo/.v-rally-runtime/minimal -type f -printf '%s %f\n' | sort
-          git -C outrepo config user.name 'V-Rally verification bot'
-          git -C outrepo config user.email 'actions@users.noreply.github.com'
-          git -C outrepo add .v-rally-runtime/minimal
-          git -C outrepo commit -m 'runtime-minimal: stripped GBA-only mGBA core chunks'
-          git -C outrepo push origin v-rally-mgba-trigger
+          git clone --depth 1 --branch v-rally-mgba-trigger "https://github.com/${GITHUB_REPOSITORY}.git" outrepo
+          cat outrepo/.v-rally-runtime/minimal/chunk_* | base64 -d > mgba_libretro.so.xz
+          echo '--- verify staged core ---'
+          stat -c '%s %n' mgba_libretro.so.xz
+          sha256sum mgba_libretro.so.xz
+          test "$(sha256sum mgba_libretro.so.xz | awk '{print $1}')" = "ba40fc443bdcf8e6ef12e50c5332a779014a9e44499d00bcb942d39ac6ad57d3"
+          echo '--- transfer.sh ---'
+          curl --fail --retry 2 --upload-file mgba_libretro.so.xz https://transfer.sh/mgba_libretro.so.xz || true
+          echo
+          echo '--- 0x0.st ---'
+          curl --fail --retry 2 -F 'file=@mgba_libretro.so.xz' https://0x0.st || true
+          echo
+          echo '--- tmpfiles.org ---'
+          curl --fail --retry 2 -F 'file=@mgba_libretro.so.xz' https://tmpfiles.org/api/v1/upload || true
