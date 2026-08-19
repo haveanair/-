@@ -1,2 +1,2 @@
 Temporary trigger for isolated mGBA runtime used in V-Rally execution verification. No ROM data is stored here.
-Wrapped transfer rerun: 2026-08-19 14:33 KST.
+Minimal GBA-only build: 2026-08-19 14:36 KST.
