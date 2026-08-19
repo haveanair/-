@@ -6,17 +6,34 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  resolve-runtime-host:
+  resplit-runtime:
     runs-on: ubuntu-22.04
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Resolve temporary runtime host
+      - name: Resplit verified minimal mGBA core into connector-safe text chunks
         shell: bash
         run: |
           set -euo pipefail
-          echo '--- tmpfiles.org IPv4 ---'
-          getent ahostsv4 tmpfiles.org | head -10 || true
-          echo '--- direct URL headers ---'
-          curl -sSIL --max-time 10 https://tmpfiles.org/dl/wlw2CGkgPOpv/mgba_libretro.so.xz | head -30 || true
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" outrepo
+          git -C outrepo checkout v-rally-mgba-trigger
+          if git -C outrepo log -1 --pretty=%s | grep -q '^runtime-small:'; then
+            echo 'Small transfer chunks already staged.'
+            exit 0
+          fi
+          cat outrepo/.v-rally-runtime/minimal/chunk_* | base64 -d > mgba_libretro.so.xz
+          test "$(sha256sum mgba_libretro.so.xz | awk '{print $1}')" = "ba40fc443bdcf8e6ef12e50c5332a779014a9e44499d00bcb942d39ac6ad57d3"
+          base64 -w 76 mgba_libretro.so.xz > transfer.b64
+          rm -rf outrepo/.v-rally-runtime/small
+          mkdir -p outrepo/.v-rally-runtime/small
+          split -b 5200 -d -a 3 transfer.b64 outrepo/.v-rally-runtime/small/chunk_
+          echo '--- small chunks ---'
+          find outrepo/.v-rally-runtime/small -type f -printf '%s %f\n' | sort
+          git -C outrepo config user.name 'V-Rally verification bot'
+          git -C outrepo config user.email 'actions@users.noreply.github.com'
+          git -C outrepo add .v-rally-runtime/small
+          git -C outrepo commit -m 'runtime-small: connector-safe mGBA transfer chunks'
+          git -C outrepo push origin v-rally-mgba-trigger
