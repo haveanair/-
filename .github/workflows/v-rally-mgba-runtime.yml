@@ -7,27 +7,36 @@ on:
 
 permissions:
   contents: read
-  actions: write
 
 jobs:
-  upload-runtime:
+  transfer-chunk:
     runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        idx: [0,1,2,3,4,5,6,7,8,9,10]
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Reassemble previously built minimal mGBA core
+      - name: Emit verified mGBA runtime transfer chunk
         shell: bash
         run: |
           set -euo pipefail
           git clone --depth 1 --branch v-rally-mgba-trigger "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo
           cat repo/.v-rally-runtime/minimal/chunk_* > minimal.b64
           base64 -d minimal.b64 > mgba_minimal.so.xz
-          sha256sum mgba_minimal.so.xz
           test "$(sha256sum mgba_minimal.so.xz | awk '{print $1}')" = "ba40fc443bdcf8e6ef12e50c5332a779014a9e44499d00bcb942d39ac6ad57d3"
-      - name: Upload mGBA runtime
-        uses: actions/upload-artifact@v4
-        with:
-          name: v-rally-mgba-runtime-0.10.5
-          path: mgba_minimal.so.xz
-          retention-days: 1
-          compression-level: 0
+          base64 -w0 mgba_minimal.so.xz > transfer.b64
+          split -b 32000 -d -a 2 transfer.b64 part_
+          N=$(printf '%02d' "${{ matrix.idx }}")
+          P="part_${N}"
+          if [ -f "$P" ]; then
+            echo "TRANSFER_BEGIN_${N}"
+            cat "$P"
+            echo
+            echo "TRANSFER_END_${N}"
+          else
+            echo "TRANSFER_BEGIN_${N}"
+            echo
+            echo "TRANSFER_END_${N}"
+          fi
