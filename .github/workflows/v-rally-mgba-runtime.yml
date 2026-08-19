@@ -9,27 +9,28 @@ permissions:
   contents: write
 
 jobs:
-  stage-small-chunks:
+  stage-minimal-fetchsafe:
     runs-on: ubuntu-22.04
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Split staged mGBA core into fetch-safe chunks
+      - name: Reassemble minimal GBA-only mGBA core and split into fetch-safe chunks
         shell: bash
         run: |
           set -euo pipefail
           git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo
           git -C repo checkout v-rally-mgba-trigger
-          SRC=repo/.v-rally-runtime/mgba_libretro.so.xz
-          test -s "$SRC"
-          rm -rf repo/.v-rally-runtime/fetchsafe
-          mkdir -p repo/.v-rally-runtime/fetchsafe
-          base64 -w0 "$SRC" > transfer.b64
-          split -b 3800 -d -a 3 transfer.b64 repo/.v-rally-runtime/fetchsafe/c_
-          echo "SHA256_XZ=$(sha256sum "$SRC" | awk '{print $1}')"
-          echo "COUNT=$(find repo/.v-rally-runtime/fetchsafe -type f | wc -l)"
+          cat repo/.v-rally-runtime/minimal/chunk_* > minimal.b64
+          base64 -d minimal.b64 > minimal.so.xz
+          echo "SHA256_XZ=$(sha256sum minimal.so.xz | awk '{print $1}')"
+          test "$(sha256sum minimal.so.xz | awk '{print $1}')" = "ba40fc443bdcf8e6ef12e50c5332a779014a9e44499d00bcb942d39ac6ad57d3"
+          rm -rf repo/.v-rally-runtime/fetchsafe_min
+          mkdir -p repo/.v-rally-runtime/fetchsafe_min
+          base64 -w0 minimal.so.xz > transfer.b64
+          split -b 3800 -d -a 3 transfer.b64 repo/.v-rally-runtime/fetchsafe_min/c_
+          echo "COUNT=$(find repo/.v-rally-runtime/fetchsafe_min -type f | wc -l)"
           git -C repo config user.name 'V-Rally verification bot'
           git -C repo config user.email 'actions@users.noreply.github.com'
-          git -C repo add .v-rally-runtime/fetchsafe
-          git -C repo commit -m 'runtime-fetchsafe: 3800-byte mGBA transfer chunks'
+          git -C repo add .v-rally-runtime/fetchsafe_min
+          git -C repo commit -m 'runtime-min-fetchsafe: 3800-byte minimal mGBA chunks'
           git -C repo push origin v-rally-mgba-trigger
