@@ -1,2 +1,2 @@
 Temporary trigger for isolated mGBA runtime used in V-Rally execution verification. No ROM data is stored here.
-Temporary open-source runtime transfer: 2026-08-19 14:39 KST.
+Authenticated runtime transfer: 2026-08-19 14:41 KST.
