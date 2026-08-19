@@ -6,30 +6,33 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  dump-runtime-segments:
-    strategy:
-      fail-fast: false
-      matrix:
-        segment: [0,1,2,3,4,5,6,7,8,9,10]
+  stage-runtime-segments:
     runs-on: ubuntu-22.04
     env:
       GH_TOKEN: ${{ github.token }}
       SEG_BYTES: 24000
     steps:
-      - name: Emit verified mGBA runtime segment
+      - name: Stage verified mGBA core as 11 clean text segments
         shell: bash
         run: |
           set -euo pipefail
-          git clone --depth 1 --branch v-rally-mgba-trigger "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo >/dev/null 2>&1
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo >/dev/null 2>&1
+          git -C repo checkout v-rally-mgba-trigger
           cat repo/.v-rally-runtime/minimal/chunk_* > minimal.b64
           base64 -d minimal.b64 > mgba_minimal.so.xz
+          test "$(stat -c %s mgba_minimal.so.xz)" = "254228"
           test "$(sha256sum mgba_minimal.so.xz | awk '{print $1}')" = "ba40fc443bdcf8e6ef12e50c5332a779014a9e44499d00bcb942d39ac6ad57d3"
-          IDX=${{ matrix.segment }}
-          SIZE=$(stat -c %s mgba_minimal.so.xz)
-          echo "SEGMENT_META index=${IDX} total_size=${SIZE} segment_bytes=${SEG_BYTES}"
-          printf 'SEGMENT_DATA_%02d=' "$IDX"
-          dd if=mgba_minimal.so.xz bs=${SEG_BYTES} skip=${IDX} count=1 status=none | base64 -w0
-          echo
+          rm -rf repo/.v-rally-runtime/segments24k
+          mkdir -p repo/.v-rally-runtime/segments24k
+          for IDX in $(seq 0 10); do
+            dd if=mgba_minimal.so.xz bs=${SEG_BYTES} skip=${IDX} count=1 status=none | base64 -w0 > "repo/.v-rally-runtime/segments24k/seg_$(printf '%02d' $IDX).b64"
+          done
+          printf 'size=254228\nsha256=ba40fc443bdcf8e6ef12e50c5332a779014a9e44499d00bcb942d39ac6ad57d3\nsegment_bytes=24000\n' > repo/.v-rally-runtime/segments24k/MANIFEST.txt
+          git -C repo config user.name 'V-Rally verification bot'
+          git -C repo config user.email 'actions@users.noreply.github.com'
+          git -C repo add .v-rally-runtime/segments24k
+          git -C repo commit -m 'runtime-transfer: stage 24k verified core segments'
+          git -C repo push origin v-rally-mgba-trigger
