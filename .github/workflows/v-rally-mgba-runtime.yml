@@ -23,6 +23,5 @@ jobs:
           test -s "$SRC"
           echo "SHA256_XZ=$(sha256sum "$SRC" | awk '{print $1}')"
           echo 'MGBAXZ_B64_BEGIN'
-          base64 -w0 "$SRC"
-          echo
+          base64 -w 1000 "$SRC"
           echo 'MGBAXZ_B64_END'
