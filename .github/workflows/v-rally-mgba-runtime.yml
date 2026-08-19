@@ -9,49 +9,20 @@ permissions:
   contents: read
 
 jobs:
-  upload-runtime:
+  print-runtime:
     runs-on: ubuntu-22.04
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Build minimal mGBA 0.10.5 GBA libretro core and upload temporary copy
+      - name: Print staged verified mGBA core for local reconstruction
         shell: bash
         run: |
           set -euo pipefail
-          git clone --depth 1 --branch 0.10.5 https://github.com/mgba-emu/mgba.git src
-          cmake -S src -B build \
-            -DBUILD_LIBRETRO=ON \
-            -DM_CORE_GBA=ON \
-            -DM_CORE_GB=OFF \
-            -DBUILD_QT=OFF \
-            -DBUILD_SDL=OFF \
-            -DDISABLE_FRONTENDS=ON \
-            -DUSE_DEBUGGERS=OFF \
-            -DUSE_GDB_STUB=OFF \
-            -DUSE_EDITLINE=OFF \
-            -DUSE_FFMPEG=OFF \
-            -DUSE_LUA=OFF \
-            -DENABLE_SCRIPTING=OFF \
-            -DUSE_DISCORD_RPC=OFF \
-            -DUSE_SQLITE3=OFF \
-            -DUSE_ELF=OFF \
-            -DUSE_LIBZIP=OFF \
-            -DUSE_MINIZIP=OFF \
-            -DUSE_LZMA=OFF \
-            -DUSE_PNG=OFF \
-            -DBUILD_GL=OFF \
-            -DBUILD_GLES2=OFF \
-            -DBUILD_GLES3=OFF \
-            -DSKIP_LIBRARY=ON \
-            -DBUILD_SHARED=OFF \
-            -DCMAKE_BUILD_TYPE=MinSizeRel
-          cmake --build build -j2 --target mgba_libretro
-          CORE=$(find build -type f -name '*libretro*.so' | head -1)
-          cp "$CORE" mgba_libretro.so
-          strip --strip-unneeded mgba_libretro.so
-          xz -9 -k mgba_libretro.so
-          echo "SHA256_XZ=$(sha256sum mgba_libretro.so.xz | awk '{print $1}')"
-          echo '--- tmpfiles upload ---'
-          RESP=$(curl -sS -f -F "file=@mgba_libretro.so.xz" https://tmpfiles.org/api/v1/upload)
-          echo "$RESP"
-          URL=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["url"])' <<< "$RESP")
-          DIRECT=${URL/https:\/\/tmpfiles.org\//https:\/\/tmpfiles.org\/dl\/}
-          echo "DIRECT_URL=$DIRECT"
+          git clone --depth 1 --branch v-rally-mgba-trigger "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo
+          SRC=repo/.v-rally-runtime/mgba_libretro.so.xz
+          test -s "$SRC"
+          echo "SHA256_XZ=$(sha256sum "$SRC" | awk '{print $1}')"
+          echo 'MGBAXZ_B64_BEGIN'
+          base64 -w0 "$SRC"
+          echo
+          echo 'MGBAXZ_B64_END'
