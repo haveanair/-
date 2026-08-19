@@ -9,48 +9,33 @@ permissions:
   contents: write
 
 jobs:
-  build-libretro:
+  stage-runtime-text:
     runs-on: ubuntu-22.04
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Build and stage minimal mGBA core on isolated branch
+      - name: Wrap staged mGBA core as line-addressable base64
         shell: bash
         run: |
           set -euo pipefail
           git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" outrepo
           git -C outrepo checkout v-rally-mgba-trigger
-          if git -C outrepo log -1 --pretty=%s | grep -q '^runtime-output:'; then
-            echo 'Runtime output already staged; no rebuild needed.'
+          if git -C outrepo log -1 --pretty=%s | grep -q '^runtime-b64:'; then
+            echo 'Wrapped runtime already staged.'
             exit 0
           fi
-          git clone --depth 1 --branch 0.10.5 https://github.com/mgba-emu/mgba.git src
-          cmake -S src -B build \
-            -DBUILD_LIBRETRO=ON \
-            -DBUILD_QT=OFF \
-            -DBUILD_SDL=OFF \
-            -DDISABLE_FRONTENDS=ON \
-            -DUSE_FFMPEG=OFF \
-            -DUSE_LUA=OFF \
-            -DENABLE_SCRIPTING=OFF \
-            -DUSE_DISCORD_RPC=OFF \
-            -DUSE_SQLITE3=OFF \
-            -DUSE_ELF=OFF \
-            -DUSE_LIBZIP=OFF \
-            -DUSE_LZMA=OFF \
-            -DCMAKE_BUILD_TYPE=MinSizeRel
-          cmake --build build -j2
-          CORE=$(find build -type f -name '*libretro*.so' | head -1)
-          test -n "$CORE"
-          mkdir -p outrepo/.v-rally-runtime
-          xz -9 -c "$CORE" > outrepo/.v-rally-runtime/mgba_libretro.so.xz
-          sha256sum outrepo/.v-rally-runtime/mgba_libretro.so.xz
+          SRC=outrepo/.v-rally-runtime/mgba_libretro.so.xz
+          test -s "$SRC"
+          base64 -w 76 "$SRC" > outrepo/.v-rally-runtime/mgba_libretro.so.xz.b64
+          echo '--- transfer file ---'
+          wc -l -c outrepo/.v-rally-runtime/mgba_libretro.so.xz.b64
+          sha256sum "$SRC"
           git -C outrepo config user.name 'V-Rally verification bot'
           git -C outrepo config user.email 'actions@users.noreply.github.com'
-          git -C outrepo add .v-rally-runtime/mgba_libretro.so.xz
+          git -C outrepo add .v-rally-runtime/mgba_libretro.so.xz.b64
           if git -C outrepo diff --cached --quiet; then
-            echo 'No runtime change.'
+            echo 'No transfer file change.'
           else
-            git -C outrepo commit -m 'runtime-output: mGBA 0.10.5 libretro core'
+            git -C outrepo commit -m 'runtime-b64: wrap mGBA core for local verification'
             git -C outrepo push origin v-rally-mgba-trigger
           fi
