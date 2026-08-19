@@ -1,2 +1,2 @@
 Temporary trigger for isolated mGBA runtime used in V-Rally execution verification. No ROM data is stored here.
-Log-chunk transfer trigger: 2026-08-19 23:23 KST.
+Artifact transfer retry: 2026-08-19 23:36 KST.
