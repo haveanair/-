@@ -6,16 +6,24 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-libretro:
     runs-on: ubuntu-22.04
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Build minimal official mGBA 0.10.5 libretro core
+      - name: Build and stage minimal mGBA core on isolated branch
         shell: bash
         run: |
           set -euo pipefail
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" outrepo
+          git -C outrepo checkout v-rally-mgba-trigger
+          if git -C outrepo log -1 --pretty=%s | grep -q '^runtime-output:'; then
+            echo 'Runtime output already staged; no rebuild needed.'
+            exit 0
+          fi
           git clone --depth 1 --branch 0.10.5 https://github.com/mgba-emu/mgba.git src
           cmake -S src -B build \
             -DBUILD_LIBRETRO=ON \
@@ -32,14 +40,17 @@ jobs:
             -DUSE_LZMA=OFF \
             -DCMAKE_BUILD_TYPE=MinSizeRel
           cmake --build build -j2
-          echo '--- libretro candidates ---'
-          find build -type f -name '*libretro*.so' -o -name '*mgba*.so' | xargs -r ls -l
           CORE=$(find build -type f -name '*libretro*.so' | head -1)
           test -n "$CORE"
-          file "$CORE"
-          ldd "$CORE" || true
-          cp "$CORE" mgba_libretro.so
-          xz -9 -k mgba_libretro.so
-          echo '--- sizes ---'
-          stat -c '%s %n' mgba_libretro.so mgba_libretro.so.xz
-          sha256sum mgba_libretro.so mgba_libretro.so.xz
+          mkdir -p outrepo/.v-rally-runtime
+          xz -9 -c "$CORE" > outrepo/.v-rally-runtime/mgba_libretro.so.xz
+          sha256sum outrepo/.v-rally-runtime/mgba_libretro.so.xz
+          git -C outrepo config user.name 'V-Rally verification bot'
+          git -C outrepo config user.email 'actions@users.noreply.github.com'
+          git -C outrepo add .v-rally-runtime/mgba_libretro.so.xz
+          if git -C outrepo diff --cached --quiet; then
+            echo 'No runtime change.'
+          else
+            git -C outrepo commit -m 'runtime-output: mGBA 0.10.5 libretro core'
+            git -C outrepo push origin v-rally-mgba-trigger
+          fi
