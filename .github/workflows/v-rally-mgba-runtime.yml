@@ -9,31 +9,37 @@ permissions:
   contents: read
 
 jobs:
-  inspect-mgba:
+  build-libretro:
     runs-on: ubuntu-22.04
     steps:
-      - name: Fetch and inspect official mGBA 0.10.5 Ubuntu Jammy build
+      - name: Build minimal official mGBA 0.10.5 libretro core
         shell: bash
         run: |
           set -euo pipefail
-          curl -L --fail --retry 3 -o mGBA.tar.xz https://github.com/mgba-emu/mgba/releases/download/0.10.5/mGBA-0.10.5-ubuntu64-jammy.tar.xz
-          mkdir pkg root
-          tar -xJf mGBA.tar.xz -C pkg
-          D="pkg/mGBA-0.10.5-ubuntu64-jammy"
-          dpkg-deb -x "$D/libmgba.deb" root
-          dpkg-deb -x "$D/mgba-sdl.deb" root
-          echo '--- extracted files ---'
-          find root -type f -printf '%s %p\n' | sort -n
-          echo '--- ELF files ---'
-          find root -type f -exec sh -c 'file "$1" | grep -E "ELF .* (executable|shared object)" || true' _ {} \;
-          echo '--- ldd mgba ---'
-          BIN=$(find root -type f -name mgba -perm -111 | head -1)
-          echo "BIN=$BIN"
-          LD_LIBRARY_PATH="$(dirname $(find root -type f -name 'libmgba.so*' | head -1))" ldd "$BIN" || true
-          echo '--- compressed minimal runtime ---'
-          mkdir mini
-          cp "$BIN" mini/
-          cp $(find root -type f -name 'libmgba.so*' | head -1) mini/
-          tar -cJf mini.tar.xz -C mini .
-          stat -c '%s mini.tar.xz'
-          sha256sum mini.tar.xz mini/*
+          git clone --depth 1 --branch 0.10.5 https://github.com/mgba-emu/mgba.git src
+          cmake -S src -B build \
+            -DBUILD_LIBRETRO=ON \
+            -DBUILD_QT=OFF \
+            -DBUILD_SDL=OFF \
+            -DDISABLE_FRONTENDS=ON \
+            -DUSE_FFMPEG=OFF \
+            -DUSE_LUA=OFF \
+            -DENABLE_SCRIPTING=OFF \
+            -DUSE_DISCORD_RPC=OFF \
+            -DUSE_SQLITE3=OFF \
+            -DUSE_ELF=OFF \
+            -DUSE_LIBZIP=OFF \
+            -DUSE_LZMA=OFF \
+            -DCMAKE_BUILD_TYPE=MinSizeRel
+          cmake --build build -j2
+          echo '--- libretro candidates ---'
+          find build -type f -name '*libretro*.so' -o -name '*mgba*.so' | xargs -r ls -l
+          CORE=$(find build -type f -name '*libretro*.so' | head -1)
+          test -n "$CORE"
+          file "$CORE"
+          ldd "$CORE" || true
+          cp "$CORE" mgba_libretro.so
+          xz -9 -k mgba_libretro.so
+          echo '--- sizes ---'
+          stat -c '%s %n' mgba_libretro.so mgba_libretro.so.xz
+          sha256sum mgba_libretro.so mgba_libretro.so.xz
