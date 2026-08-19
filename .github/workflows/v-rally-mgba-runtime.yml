@@ -6,33 +6,27 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  stage-runtime-segments:
+  upload-text-payload:
     runs-on: ubuntu-22.04
     env:
       GH_TOKEN: ${{ github.token }}
-      SEG_BYTES: 24000
     steps:
-      - name: Stage verified mGBA core as 11 clean text segments
+      - name: Upload verified mGBA core as plain base64 text
         shell: bash
         run: |
           set -euo pipefail
-          git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo >/dev/null 2>&1
-          git -C repo checkout v-rally-mgba-trigger
-          cat repo/.v-rally-runtime/minimal/chunk_* > minimal.b64
-          base64 -d minimal.b64 > mgba_minimal.so.xz
+          git clone --depth 1 --branch v-rally-mgba-trigger "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo >/dev/null 2>&1
+          cat repo/.v-rally-runtime/minimal/chunk_* > minimal_wrapped.b64
+          base64 -d minimal_wrapped.b64 > mgba_minimal.so.xz
           test "$(stat -c %s mgba_minimal.so.xz)" = "254228"
           test "$(sha256sum mgba_minimal.so.xz | awk '{print $1}')" = "ba40fc443bdcf8e6ef12e50c5332a779014a9e44499d00bcb942d39ac6ad57d3"
-          rm -rf repo/.v-rally-runtime/segments24k
-          mkdir -p repo/.v-rally-runtime/segments24k
-          for IDX in $(seq 0 10); do
-            dd if=mgba_minimal.so.xz bs=${SEG_BYTES} skip=${IDX} count=1 status=none | base64 -w0 > "repo/.v-rally-runtime/segments24k/seg_$(printf '%02d' $IDX).b64"
-          done
-          printf 'size=254228\nsha256=ba40fc443bdcf8e6ef12e50c5332a779014a9e44499d00bcb942d39ac6ad57d3\nsegment_bytes=24000\n' > repo/.v-rally-runtime/segments24k/MANIFEST.txt
-          git -C repo config user.name 'V-Rally verification bot'
-          git -C repo config user.email 'actions@users.noreply.github.com'
-          git -C repo add .v-rally-runtime/segments24k
-          git -C repo commit -m 'runtime-transfer: stage 24k verified core segments'
-          git -C repo push origin v-rally-mgba-trigger
+          base64 -w 76 mgba_minimal.so.xz > mgba_minimal_base64.txt
+          printf '\nSHA256_XZ=ba40fc443bdcf8e6ef12e50c5332a779014a9e44499d00bcb942d39ac6ad57d3\nSIZE_XZ=254228\n' >> mgba_minimal_base64.txt
+          RESP=$(curl -sS -f -F "file=@mgba_minimal_base64.txt;type=text/plain" https://tmpfiles.org/api/v1/upload)
+          echo "$RESP"
+          URL=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["url"])' <<< "$RESP")
+          DIRECT=${URL/https:\/\/tmpfiles.org\//https:\/\/tmpfiles.org\/dl\/}
+          echo "TEXT_DIRECT_URL=$DIRECT"
