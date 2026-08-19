@@ -16,20 +16,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl -L --fail --retry 3 \
-            -o mGBA.tar.xz \
-            https://github.com/mgba-emu/mgba/releases/download/0.10.5/mGBA-0.10.5-ubuntu64-jammy.tar.xz
-          sha256sum mGBA.tar.xz
-          mkdir mgba
-          tar -xJf mGBA.tar.xz -C mgba
-          echo '--- archive files ---'
-          find mgba -type f -printf '%s %p\n' | sort -n
-          echo '--- executables ---'
-          find mgba -type f -perm -111 -print -exec file {} \;
-          echo '--- ldd ---'
-          while IFS= read -r f; do
-            if file "$f" | grep -q 'ELF .* executable'; then
-              echo "### $f"
-              ldd "$f" || true
-            fi
-          done < <(find mgba -type f -perm -111 -print)
+          curl -L --fail --retry 3 -o mGBA.tar.xz https://github.com/mgba-emu/mgba/releases/download/0.10.5/mGBA-0.10.5-ubuntu64-jammy.tar.xz
+          mkdir pkg root
+          tar -xJf mGBA.tar.xz -C pkg
+          D="pkg/mGBA-0.10.5-ubuntu64-jammy"
+          dpkg-deb -x "$D/libmgba.deb" root
+          dpkg-deb -x "$D/mgba-sdl.deb" root
+          echo '--- extracted files ---'
+          find root -type f -printf '%s %p\n' | sort -n
+          echo '--- ELF files ---'
+          find root -type f -exec sh -c 'file "$1" | grep -E "ELF .* (executable|shared object)" || true' _ {} \;
+          echo '--- ldd mgba ---'
+          BIN=$(find root -type f -name mgba -perm -111 | head -1)
+          echo "BIN=$BIN"
+          LD_LIBRARY_PATH="$(dirname $(find root -type f -name 'libmgba.so*' | head -1))" ldd "$BIN" || true
+          echo '--- compressed minimal runtime ---'
+          mkdir mini
+          cp "$BIN" mini/
+          cp $(find root -type f -name 'libmgba.so*' | head -1) mini/
+          tar -cJf mini.tar.xz -C mini .
+          stat -c '%s mini.tar.xz'
+          sha256sum mini.tar.xz mini/*
