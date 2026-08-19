@@ -1,0 +1,6 @@
+start,end,buttons
+0,119,START
+120,239,A
+240,899,A+RIGHT
+900,959,B+LEFT
+960,1800,A
