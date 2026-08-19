@@ -5,24 +5,31 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
-  fetch-mgba:
+  inspect-mgba:
     runs-on: ubuntu-22.04
     steps:
-      - name: Fetch official mGBA 0.10.5 Ubuntu Jammy build
+      - name: Fetch and inspect official mGBA 0.10.5 Ubuntu Jammy build
         shell: bash
         run: |
           set -euo pipefail
           curl -L --fail --retry 3 \
-            -o mGBA-0.10.5-ubuntu64-jammy.tar.xz \
+            -o mGBA.tar.xz \
             https://github.com/mgba-emu/mgba/releases/download/0.10.5/mGBA-0.10.5-ubuntu64-jammy.tar.xz
-          sha256sum mGBA-0.10.5-ubuntu64-jammy.tar.xz > SHA256SUM.txt
-      - name: Upload runtime archive
-        uses: actions/upload-artifact@v4
-        with:
-          name: mgba-0.10.5-jammy
-          path: |
-            mGBA-0.10.5-ubuntu64-jammy.tar.xz
-            SHA256SUM.txt
-          if-no-files-found: error
-          retention-days: 1
+          sha256sum mGBA.tar.xz
+          mkdir mgba
+          tar -xJf mGBA.tar.xz -C mgba
+          echo '--- archive files ---'
+          find mgba -type f -printf '%s %p\n' | sort -n
+          echo '--- executables ---'
+          find mgba -type f -perm -111 -print -exec file {} \;
+          echo '--- ldd ---'
+          while IFS= read -r f; do
+            if file "$f" | grep -q 'ELF .* executable'; then
+              echo "### $f"
+              ldd "$f" || true
+            fi
+          done < <(find mgba -type f -perm -111 -print)
