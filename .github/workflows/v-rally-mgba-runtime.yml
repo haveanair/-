@@ -1,0 +1,28 @@
+name: v-rally-mgba-runtime
+
+on:
+  push:
+    branches:
+      - v-rally-mgba-runtime
+
+jobs:
+  fetch-mgba:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Fetch official mGBA 0.10.5 Ubuntu Jammy build
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 \
+            -o mGBA-0.10.5-ubuntu64-jammy.tar.xz \
+            https://github.com/mgba-emu/mgba/releases/download/0.10.5/mGBA-0.10.5-ubuntu64-jammy.tar.xz
+          sha256sum mGBA-0.10.5-ubuntu64-jammy.tar.xz > SHA256SUM.txt
+      - name: Upload runtime archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: mgba-0.10.5-jammy
+          path: |
+            mGBA-0.10.5-ubuntu64-jammy.tar.xz
+            SHA256SUM.txt
+          if-no-files-found: error
+          retention-days: 1
