@@ -1,2 +1,2 @@
 Temporary trigger for isolated mGBA runtime used in V-Rally execution verification. No ROM data is stored here.
-Temporary URL transfer trigger: 2026-08-19 21:51 KST.
+Job-log transfer trigger: 2026-08-19 22:08 KST.
