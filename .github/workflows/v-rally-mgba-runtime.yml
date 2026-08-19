@@ -11,12 +11,14 @@ permissions:
 jobs:
   publish-runtime-temporarily:
     runs-on: ubuntu-22.04
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Reconstruct mGBA core and publish only the open-source runtime temporarily
         shell: bash
         run: |
           set -euo pipefail
-          git clone --depth 1 --branch v-rally-mgba-trigger "https://github.com/${GITHUB_REPOSITORY}.git" outrepo
+          git clone --depth 1 --branch v-rally-mgba-trigger "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" outrepo
           cat outrepo/.v-rally-runtime/minimal/chunk_* | base64 -d > mgba_libretro.so.xz
           echo '--- verify staged core ---'
           stat -c '%s %n' mgba_libretro.so.xz
