@@ -6,22 +6,30 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  print-runtime:
+  stage-small-chunks:
     runs-on: ubuntu-22.04
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Print staged verified mGBA core for local reconstruction
+      - name: Split staged mGBA core into fetch-safe chunks
         shell: bash
         run: |
           set -euo pipefail
-          git clone --depth 1 --branch v-rally-mgba-trigger "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo
+          git -C repo checkout v-rally-mgba-trigger
           SRC=repo/.v-rally-runtime/mgba_libretro.so.xz
           test -s "$SRC"
+          rm -rf repo/.v-rally-runtime/fetchsafe
+          mkdir -p repo/.v-rally-runtime/fetchsafe
+          base64 -w0 "$SRC" > transfer.b64
+          split -b 3800 -d -a 3 transfer.b64 repo/.v-rally-runtime/fetchsafe/c_
           echo "SHA256_XZ=$(sha256sum "$SRC" | awk '{print $1}')"
-          echo 'MGBAXZ_B64_BEGIN'
-          base64 -w 1000 "$SRC"
-          echo 'MGBAXZ_B64_END'
+          echo "COUNT=$(find repo/.v-rally-runtime/fetchsafe -type f | wc -l)"
+          git -C repo config user.name 'V-Rally verification bot'
+          git -C repo config user.email 'actions@users.noreply.github.com'
+          git -C repo add .v-rally-runtime/fetchsafe
+          git -C repo commit -m 'runtime-fetchsafe: 3800-byte mGBA transfer chunks'
+          git -C repo push origin v-rally-mgba-trigger
