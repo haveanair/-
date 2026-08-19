@@ -9,28 +9,28 @@ permissions:
   contents: write
 
 jobs:
-  stage-minimal-fetchsafe:
+  stage-transfer-pr:
     runs-on: ubuntu-22.04
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Reassemble minimal GBA-only mGBA core and split into fetch-safe chunks
+      - name: Stage minimal mGBA core as paged text on isolated transfer branch
         shell: bash
         run: |
           set -euo pipefail
           git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo
           git -C repo checkout v-rally-mgba-trigger
-          cat repo/.v-rally-runtime/minimal/chunk_* > minimal.b64
-          base64 -d minimal.b64 > minimal.so.xz
-          echo "SHA256_XZ=$(sha256sum minimal.so.xz | awk '{print $1}')"
-          test "$(sha256sum minimal.so.xz | awk '{print $1}')" = "ba40fc443bdcf8e6ef12e50c5332a779014a9e44499d00bcb942d39ac6ad57d3"
-          rm -rf repo/.v-rally-runtime/fetchsafe_min
-          mkdir -p repo/.v-rally-runtime/fetchsafe_min
-          base64 -w0 minimal.so.xz > transfer.b64
-          split -b 3800 -d -a 3 transfer.b64 repo/.v-rally-runtime/fetchsafe_min/c_
-          echo "COUNT=$(find repo/.v-rally-runtime/fetchsafe_min -type f | wc -l)"
+          cat repo/.v-rally-runtime/minimal/chunk_* > /tmp/minimal.b64
+          base64 -d /tmp/minimal.b64 > /tmp/minimal.so.xz
+          test "$(sha256sum /tmp/minimal.so.xz | awk '{print $1}')" = "ba40fc443bdcf8e6ef12e50c5332a779014a9e44499d00bcb942d39ac6ad57d3"
+          git -C repo checkout v-rally-runtime-transfer
+          mkdir -p repo/.v-rally-transfer
+          base64 -w0 /tmp/minimal.so.xz | fold -w 1000 > repo/.v-rally-transfer/mgba_minimal.xz.b64
+          printf '%s\n' 'ba40fc443bdcf8e6ef12e50c5332a779014a9e44499d00bcb942d39ac6ad57d3  mgba_minimal.xz' > repo/.v-rally-transfer/SHA256.txt
           git -C repo config user.name 'V-Rally verification bot'
           git -C repo config user.email 'actions@users.noreply.github.com'
-          git -C repo add .v-rally-runtime/fetchsafe_min
-          git -C repo commit -m 'runtime-min-fetchsafe: 3800-byte minimal mGBA chunks'
-          git -C repo push origin v-rally-mgba-trigger
+          git -C repo add .v-rally-transfer
+          if ! git -C repo diff --cached --quiet; then
+            git -C repo commit -m 'runtime-transfer: paged minimal mGBA core'
+            git -C repo push origin v-rally-runtime-transfer
+          fi
