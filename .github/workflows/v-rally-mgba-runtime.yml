@@ -9,26 +9,14 @@ permissions:
   contents: read
 
 jobs:
-  publish-runtime-temporarily:
+  resolve-runtime-host:
     runs-on: ubuntu-22.04
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Reconstruct mGBA core and publish only the open-source runtime temporarily
+      - name: Resolve temporary runtime host
         shell: bash
         run: |
           set -euo pipefail
-          git clone --depth 1 --branch v-rally-mgba-trigger "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" outrepo
-          cat outrepo/.v-rally-runtime/minimal/chunk_* | base64 -d > mgba_libretro.so.xz
-          echo '--- verify staged core ---'
-          stat -c '%s %n' mgba_libretro.so.xz
-          sha256sum mgba_libretro.so.xz
-          test "$(sha256sum mgba_libretro.so.xz | awk '{print $1}')" = "ba40fc443bdcf8e6ef12e50c5332a779014a9e44499d00bcb942d39ac6ad57d3"
-          echo '--- transfer.sh ---'
-          curl --fail --retry 2 --upload-file mgba_libretro.so.xz https://transfer.sh/mgba_libretro.so.xz || true
-          echo
-          echo '--- 0x0.st ---'
-          curl --fail --retry 2 -F 'file=@mgba_libretro.so.xz' https://0x0.st || true
-          echo
-          echo '--- tmpfiles.org ---'
-          curl --fail --retry 2 -F 'file=@mgba_libretro.so.xz' https://tmpfiles.org/api/v1/upload || true
+          echo '--- tmpfiles.org IPv4 ---'
+          getent ahostsv4 tmpfiles.org | head -10 || true
+          echo '--- direct URL headers ---'
+          curl -sSIL --max-time 10 https://tmpfiles.org/dl/wlw2CGkgPOpv/mgba_libretro.so.xz | head -30 || true
