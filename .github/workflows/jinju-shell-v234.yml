@@ -40,14 +40,17 @@ jobs:
           zip -q -0 -r "$GITHUB_WORKSPACE/shell-base.zip" .
           cd "$GITHUB_WORKSPACE"
           unzip -t shell-base.zip
-          ls -lh shell-base.zip
-          mkdir -p jinju_shell_v234/dist
+          mkdir -p jinju_shell_v234/dist/b64
           cp shell-base.zip jinju_shell_v234/dist/shell-base.zip
+          rm -f jinju_shell_v234/dist/b64/part*
+          base64 -w0 shell-base.zip | fold -w 4000 | split -l 1 -d -a 2 - jinju_shell_v234/dist/b64/part
+          sha256sum shell-base.zip > jinju_shell_v234/dist/shell-base.sha256
+          ls -lh shell-base.zip jinju_shell_v234/dist/b64/part*
       - name: Publish shell base to branch
         run: |
           git config user.name 'PWDJ Build Bot'
           git config user.email '34460283+haveanair@users.noreply.github.com'
-          git add jinju_shell_v234/dist/shell-base.zip
+          git add jinju_shell_v234/dist
           git diff --cached --quiet && exit 0
-          git commit -m 'jinju v234: publish compiled shell base'
+          git commit -m 'jinju v234: publish compiled shell base chunks'
           git push origin HEAD:jinju-app-v234
