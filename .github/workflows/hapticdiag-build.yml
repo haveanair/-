@@ -51,12 +51,16 @@ jobs:
           ls -lh hapticdiag/app/build/outputs/apk/debug/app-debug.apk
           sha256sum hapticdiag/app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Publish APK to branch
+      - name: Publish APK and transfer chunks to branch
         run: |
-          mkdir -p hapticdiag/dist
+          mkdir -p hapticdiag/dist/chunks
           cp hapticdiag/app/build/outputs/apk/debug/app-debug.apk 'hapticdiag/dist/어서오소_Android_네이티브진동_진단.apk'
+          base64 -w0 hapticdiag/app/build/outputs/apk/debug/app-debug.apk > hapticdiag/dist/apk.b64
+          rm -f hapticdiag/dist/chunks/part_*
+          split -b 3000 -d -a 2 hapticdiag/dist/apk.b64 hapticdiag/dist/chunks/part_
+          sha256sum hapticdiag/app/build/outputs/apk/debug/app-debug.apk > hapticdiag/dist/SHA256.txt
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add 'hapticdiag/dist/어서오소_Android_네이티브진동_진단.apk'
-          git commit -m 'hapticdiag: publish diagnostic APK' || true
+          git add hapticdiag/dist
+          git commit -m 'hapticdiag: publish APK transfer chunks' || true
           git push origin HEAD:haptic-diagnostic-build-20260829
