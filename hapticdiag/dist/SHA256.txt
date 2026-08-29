@@ -1,0 +1,1 @@
+7bdbaf69e9c76bccd7660413a87923d8ae18dec2de4736605a7154ec4723e994  hapticdiag/app/build/outputs/apk/debug/app-debug.apk
