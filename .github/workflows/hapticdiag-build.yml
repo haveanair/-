@@ -5,9 +5,14 @@ on:
     branches:
       - haptic-diagnostic-build-20260829
     paths:
-      - 'hapticdiag/**'
+      - 'hapticdiag/settings.gradle'
+      - 'hapticdiag/build.gradle'
+      - 'hapticdiag/app/**'
       - '.github/workflows/hapticdiag-build.yml'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -15,6 +20,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: haptic-diagnostic-build-20260829
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -44,9 +51,12 @@ jobs:
           ls -lh hapticdiag/app/build/outputs/apk/debug/app-debug.apk
           sha256sum hapticdiag/app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: haptic-diagnostic-apk
-          path: hapticdiag/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+      - name: Publish APK to branch
+        run: |
+          mkdir -p hapticdiag/dist
+          cp hapticdiag/app/build/outputs/apk/debug/app-debug.apk 'hapticdiag/dist/어서오소_Android_네이티브진동_진단.apk'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'hapticdiag/dist/어서오소_Android_네이티브진동_진단.apk'
+          git commit -m 'hapticdiag: publish diagnostic APK' || true
+          git push origin HEAD:haptic-diagnostic-build-20260829
