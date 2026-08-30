@@ -1,27 +1,47 @@
-name: Oso v249 Gradle APK Export Only
+name: Oso v249 Verified Shell Export
 
 on:
   push:
     branches: [oso-v249-android-final]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   export:
+    if: ${{ !contains(github.event.head_commit.message, '[shell-export]') && !contains(github.event.head_commit.message, '[emulator-result]') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Verify committed Gradle APK bases
-        run: |
-          test -f oso-v249-final/apk-bin/live-release-unsigned.apk
-          test -f oso-v249-final/apk-bin/unlocked-release-unsigned.apk
-          sha256sum oso-v249-final/apk-bin/*.apk
-      - name: Upload only two small Gradle APK bases
-        uses: actions/upload-artifact@v4
+      - uses: actions/setup-java@v4
         with:
-          name: oso-v249-gradle-apk-bases
-          retention-days: 1
-          compression-level: 0
-          path: |
-            oso-v249-final/apk-bin/live-release-unsigned.apk
-            oso-v249-final/apk-bin/unlocked-release-unsigned.apk
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build dependency-free release shells
+        working-directory: oso-v249-final
+        run: gradle --no-daemon :live:assembleRelease :unlocked:assembleRelease
+      - name: Commit compact release shells as base64 text
+        shell: bash
+        run: |
+          set -euxo pipefail
+          rm -rf /tmp/oso-shell-export
+          mkdir -p /tmp/oso-shell-export
+          base64 oso-v249-final/live/build/outputs/apk/release/live-release-unsigned.apk > /tmp/oso-shell-export/live.apk.b64
+          base64 oso-v249-final/unlocked/build/outputs/apk/release/unlocked-release-unsigned.apk > /tmp/oso-shell-export/unlocked.apk.b64
+          sha256sum oso-v249-final/live/build/outputs/apk/release/live-release-unsigned.apk oso-v249-final/unlocked/build/outputs/apk/release/unlocked-release-unsigned.apk > /tmp/oso-shell-export/SHA256.txt
+          wc -c /tmp/oso-shell-export/*
+          git config user.name 'PWDJ Android Builder'
+          git config user.email '34460283+haveanair@users.noreply.github.com'
+          git fetch origin oso-v249-android-final
+          git reset --hard origin/oso-v249-android-final
+          rm -rf oso-v249-final/shell-export
+          mkdir -p oso-v249-final/shell-export
+          cp /tmp/oso-shell-export/* oso-v249-final/shell-export/
+          git add oso-v249-final/shell-export
+          git commit -m '[shell-export] verified dependency-free Gradle shells'
+          git push origin HEAD:oso-v249-android-final
