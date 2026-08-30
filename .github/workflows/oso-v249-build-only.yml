@@ -1,16 +1,12 @@
-name: Oso v249 Android Build Binary Export
+name: Oso v249 Android Wrapper Transfer
 
 on:
   push:
     branches: [oso-v249-android-final]
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  build:
-    if: ${{ !contains(github.event.head_commit.message, '[apk-binary]') && !contains(github.event.head_commit.message, '[emulator-result]') }}
+  build-transfer:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -22,23 +18,21 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Build unsigned release APKs with Android Gradle Plugin
+      - name: Build exact unsigned Gradle wrapper APKs
         working-directory: oso-v249-final
         run: gradle --no-daemon :live:assembleRelease :unlocked:assembleRelease
-      - name: Commit exact Gradle APK binaries to branch
+      - name: Temporarily transfer wrapper APK bases only
         shell: bash
         run: |
           set -euxo pipefail
-          mkdir -p /tmp/oso-apk
-          cp oso-v249-final/live/build/outputs/apk/release/live-release-unsigned.apk /tmp/oso-apk/live-release-unsigned.apk
-          cp oso-v249-final/unlocked/build/outputs/apk/release/unlocked-release-unsigned.apk /tmp/oso-apk/unlocked-release-unsigned.apk
-          sha256sum /tmp/oso-apk/*.apk > /tmp/oso-apk/SHA256.txt
-          git config user.name 'PWDJ Android Builder'
-          git config user.email '34460283+haveanair@users.noreply.github.com'
-          git fetch origin oso-v249-android-final
-          git reset --hard origin/oso-v249-android-final
-          mkdir -p oso-v249-final/apk-bin
-          cp /tmp/oso-apk/* oso-v249-final/apk-bin/
-          git add oso-v249-final/apk-bin
-          git commit -m '[apk-binary] Oso v249 exact Gradle APK binaries'
-          git push origin HEAD:oso-v249-android-final
+          LIVE=oso-v249-final/live/build/outputs/apk/release/live-release-unsigned.apk
+          UNLOCK=oso-v249-final/unlocked/build/outputs/apk/release/unlocked-release-unsigned.apk
+          sha256sum "$LIVE" "$UNLOCK"
+          LRESP=$(curl -fsS -F "file=@${LIVE};type=application/vnd.android.package-archive" https://tmpfiles.org/api/v1/upload)
+          URESP=$(curl -fsS -F "file=@${UNLOCK};type=application/vnd.android.package-archive" https://tmpfiles.org/api/v1/upload)
+          echo "$LRESP"
+          echo "$URESP"
+          LURL=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["url"])' <<< "$LRESP")
+          UURL=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["url"])' <<< "$URESP")
+          echo "LIVE_WRAPPER_URL=${LURL/https:\/\/tmpfiles.org\//https:\/\/tmpfiles.org\/dl\/}"
+          echo "UNLOCK_WRAPPER_URL=${UURL/https:\/\/tmpfiles.org\//https:\/\/tmpfiles.org\/dl\/}"
