@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build-and-launch:
-    if: ${{ !contains(github.event.head_commit.message, '[emulator-result]') }}
+    if: ${{ !contains(github.event.head_commit.message, '[emulator-result]') && !contains(github.event.head_commit.message, '[shell-export]') }}
     runs-on: macos-14
     timeout-minutes: 30
     steps:
@@ -43,28 +43,31 @@ jobs:
             set -euxo pipefail
             : > oso-v249-final/launch-verification.txt
 
+            LIVE_PKG=com.powerduck.jinjugame.live249
+            UNLOCK_PKG=com.powerduck.jinjugame.unlocked249
+
             adb install -r oso-v249-final/live/build/outputs/apk/debug/live-debug.apk
             adb logcat -c
-            adb shell am force-stop com.powerduck.jinjugame.live || true
-            adb shell am start -W -n com.powerduck.jinjugame.live/com.powerduck.jinjugame.MainActivity | tee -a oso-v249-final/launch-verification.txt
+            adb shell am force-stop "$LIVE_PKG" || true
+            adb shell am start -W -n "$LIVE_PKG/com.powerduck.jinjugame.MainActivity" | tee -a oso-v249-final/launch-verification.txt
             sleep 7
-            LIVE_PID="$(adb shell pidof com.powerduck.jinjugame.live | tr -d '\r')"
+            LIVE_PID="$(adb shell pidof "$LIVE_PKG" | tr -d '\r')"
             echo "LIVE_PID=$LIVE_PID" | tee -a oso-v249-final/launch-verification.txt
             test -n "$LIVE_PID"
             adb logcat -d > oso-v249-final/live-logcat.txt
-            if grep -A20 -B5 'FATAL EXCEPTION' oso-v249-final/live-logcat.txt | grep -q 'com.powerduck.jinjugame.live'; then exit 41; fi
+            if grep -A20 -B5 'FATAL EXCEPTION' oso-v249-final/live-logcat.txt | grep -q "$LIVE_PKG"; then exit 41; fi
             echo 'LIVE_FATAL_EXCEPTION=NONE' >> oso-v249-final/launch-verification.txt
 
             adb install -r oso-v249-final/unlocked/build/outputs/apk/debug/unlocked-debug.apk
             adb logcat -c
-            adb shell am force-stop com.powerduck.jinjugame.unlocked || true
-            adb shell am start -W -n com.powerduck.jinjugame.unlocked/com.powerduck.jinjugame.MainActivity | tee -a oso-v249-final/launch-verification.txt
+            adb shell am force-stop "$UNLOCK_PKG" || true
+            adb shell am start -W -n "$UNLOCK_PKG/com.powerduck.jinjugame.MainActivity" | tee -a oso-v249-final/launch-verification.txt
             sleep 7
-            UNLOCK_PID="$(adb shell pidof com.powerduck.jinjugame.unlocked | tr -d '\r')"
+            UNLOCK_PID="$(adb shell pidof "$UNLOCK_PKG" | tr -d '\r')"
             echo "UNLOCK_PID=$UNLOCK_PID" | tee -a oso-v249-final/launch-verification.txt
             test -n "$UNLOCK_PID"
             adb logcat -d > oso-v249-final/unlocked-logcat.txt
-            if grep -A20 -B5 'FATAL EXCEPTION' oso-v249-final/unlocked-logcat.txt | grep -q 'com.powerduck.jinjugame.unlocked'; then exit 42; fi
+            if grep -A20 -B5 'FATAL EXCEPTION' oso-v249-final/unlocked-logcat.txt | grep -q "$UNLOCK_PKG"; then exit 42; fi
             echo 'UNLOCK_FATAL_EXCEPTION=NONE' >> oso-v249-final/launch-verification.txt
 
       - name: Commit launch verification
@@ -72,6 +75,8 @@ jobs:
         run: |
           git config user.name 'PWDJ Android Verifier'
           git config user.email '34460283+haveanair@users.noreply.github.com'
+          git fetch origin oso-v249-android-final
+          git reset --hard origin/oso-v249-android-final
           git add oso-v249-final/launch-verification.txt
           git commit -m '[emulator-result] Oso v249 Android 15 launch PASS'
           git push origin HEAD:oso-v249-android-final
