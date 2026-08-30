@@ -1,0 +1,29 @@
+name: Oso v249 Android Build Only
+
+on:
+  push:
+    branches: [oso-v249-android-final]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build unsigned release APKs with Android Gradle Plugin
+        working-directory: oso-v249-final
+        run: gradle --no-daemon :live:assembleRelease :unlocked:assembleRelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oso-v249-release-unsigned
+          path: |
+            oso-v249-final/live/build/outputs/apk/release/live-release-unsigned.apk
+            oso-v249-final/unlocked/build/outputs/apk/release/unlocked-release-unsigned.apk
