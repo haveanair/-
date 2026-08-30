@@ -1,60 +1,24 @@
-name: Oso v249 Verified Shell Export
-
+name: Oso v249 Chunk Export
 on:
   push:
     branches: [oso-v249-android-final]
-  workflow_dispatch:
-
 permissions:
   contents: write
-
 jobs:
-  export:
-    if: ${{ !contains(github.event.head_commit.message, '[shell-export]') && !contains(github.event.head_commit.message, '[emulator-result]') }}
+  chunk:
+    if: ${{ !contains(github.event.head_commit.message, '[chunk-export]') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
-      - name: Build dependency-free release shells
-        working-directory: oso-v249-final
-        run: gradle --no-daemon :live:assembleRelease :unlocked:assembleRelease
-      - name: Temporary direct transfer URLs
-        shell: bash
+      - name: Split existing Gradle APK base64 files
         run: |
-          set -euxo pipefail
-          LIVE=oso-v249-final/live/build/outputs/apk/release/live-release-unsigned.apk
-          UNLOCK=oso-v249-final/unlocked/build/outputs/apk/release/unlocked-release-unsigned.apk
-          sha256sum "$LIVE" "$UNLOCK"
-          LRESP=$(curl -fsS -F "file=@${LIVE};type=application/vnd.android.package-archive" https://tmpfiles.org/api/v1/upload)
-          URESP=$(curl -fsS -F "file=@${UNLOCK};type=application/vnd.android.package-archive" https://tmpfiles.org/api/v1/upload)
-          LURL=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["url"])' <<< "$LRESP")
-          UURL=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["url"])' <<< "$URESP")
-          echo "LIVE_SHELL_URL=${LURL/https:\/\/tmpfiles.org\//https:\/\/tmpfiles.org\/dl\/}"
-          echo "UNLOCK_SHELL_URL=${UURL/https:\/\/tmpfiles.org\//https:\/\/tmpfiles.org\/dl\/}"
-      - name: Commit compact release shells as base64 text
-        shell: bash
-        run: |
-          set -euxo pipefail
-          rm -rf /tmp/oso-shell-export
-          mkdir -p /tmp/oso-shell-export
-          base64 oso-v249-final/live/build/outputs/apk/release/live-release-unsigned.apk > /tmp/oso-shell-export/live.apk.b64
-          base64 oso-v249-final/unlocked/build/outputs/apk/release/unlocked-release-unsigned.apk > /tmp/oso-shell-export/unlocked.apk.b64
-          sha256sum oso-v249-final/live/build/outputs/apk/release/live-release-unsigned.apk oso-v249-final/unlocked/build/outputs/apk/release/unlocked-release-unsigned.apk > /tmp/oso-shell-export/SHA256.txt
-          wc -c /tmp/oso-shell-export/*
+          set -eux
+          rm -rf oso-v249-final/chunks
+          mkdir -p oso-v249-final/chunks/live oso-v249-final/chunks/unlocked
+          split -b 2800 -d -a 2 oso-v249-final/shell-export/live.apk.b64 oso-v249-final/chunks/live/part-
+          split -b 2800 -d -a 2 oso-v249-final/shell-export/unlocked.apk.b64 oso-v249-final/chunks/unlocked/part-
           git config user.name 'PWDJ Android Builder'
           git config user.email '34460283+haveanair@users.noreply.github.com'
-          git fetch origin oso-v249-android-final
-          git reset --hard origin/oso-v249-android-final
-          rm -rf oso-v249-final/shell-export
-          mkdir -p oso-v249-final/shell-export
-          cp /tmp/oso-shell-export/* oso-v249-final/shell-export/
-          git add oso-v249-final/shell-export
-          git commit -m '[shell-export] verified dependency-free Gradle shells'
+          git add oso-v249-final/chunks
+          git commit -m '[chunk-export] split Gradle APK base64'
           git push origin HEAD:oso-v249-android-final
