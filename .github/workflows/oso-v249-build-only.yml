@@ -1,4 +1,4 @@
-name: Oso v249 Android Wrapper Transfer
+name: Oso v249 Gradle APK Export Only
 
 on:
   push:
@@ -6,33 +6,22 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-transfer:
+  export:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
-      - name: Build exact unsigned Gradle wrapper APKs
-        working-directory: oso-v249-final
-        run: gradle --no-daemon :live:assembleRelease :unlocked:assembleRelease
-      - name: Temporarily transfer wrapper APK bases only
-        shell: bash
+      - name: Verify committed Gradle APK bases
         run: |
-          set -euxo pipefail
-          LIVE=oso-v249-final/live/build/outputs/apk/release/live-release-unsigned.apk
-          UNLOCK=oso-v249-final/unlocked/build/outputs/apk/release/unlocked-release-unsigned.apk
-          sha256sum "$LIVE" "$UNLOCK"
-          LRESP=$(curl -fsS -F "file=@${LIVE};type=application/vnd.android.package-archive" https://tmpfiles.org/api/v1/upload)
-          URESP=$(curl -fsS -F "file=@${UNLOCK};type=application/vnd.android.package-archive" https://tmpfiles.org/api/v1/upload)
-          echo "$LRESP"
-          echo "$URESP"
-          LURL=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["url"])' <<< "$LRESP")
-          UURL=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["url"])' <<< "$URESP")
-          echo "LIVE_WRAPPER_URL=${LURL/https:\/\/tmpfiles.org\//https:\/\/tmpfiles.org\/dl\/}"
-          echo "UNLOCK_WRAPPER_URL=${UURL/https:\/\/tmpfiles.org\//https:\/\/tmpfiles.org\/dl\/}"
+          test -f oso-v249-final/apk-bin/live-release-unsigned.apk
+          test -f oso-v249-final/apk-bin/unlocked-release-unsigned.apk
+          sha256sum oso-v249-final/apk-bin/*.apk
+      - name: Upload only two small Gradle APK bases
+        uses: actions/upload-artifact@v4
+        with:
+          name: oso-v249-gradle-apk-bases
+          retention-days: 1
+          compression-level: 0
+          path: |
+            oso-v249-final/apk-bin/live-release-unsigned.apk
+            oso-v249-final/apk-bin/unlocked-release-unsigned.apk
