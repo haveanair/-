@@ -1,0 +1,2 @@
+c18cadb02e02ee65c3789684c8e812246e8d38a262044023558bdea6b216debc  oso-v249-final/live/build/outputs/apk/release/live-release-unsigned.apk
+c836fd8a4d8f00df67f9c228684a96b57c8b5d26a7f3027d9b9ad1086ba79bd8  oso-v249-final/unlocked/build/outputs/apk/release/unlocked-release-unsigned.apk
