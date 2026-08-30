@@ -1,12 +1,16 @@
-name: Oso v249 Android Build Export
+name: Oso v249 Android Build Binary Export
 
 on:
   push:
     branches: [oso-v249-android-final]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
+    if: ${{ !contains(github.event.head_commit.message, '[apk-binary]') && !contains(github.event.head_commit.message, '[emulator-result]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -21,16 +25,20 @@ jobs:
       - name: Build unsigned release APKs with Android Gradle Plugin
         working-directory: oso-v249-final
         run: gradle --no-daemon :live:assembleRelease :unlocked:assembleRelease
-      - name: Print Gradle APK bases
+      - name: Commit exact Gradle APK binaries to branch
         shell: bash
         run: |
-          set -euo pipefail
-          echo '===OSO_LIVE_APK_BASE64_BEGIN==='
-          base64 -w0 oso-v249-final/live/build/outputs/apk/release/live-release-unsigned.apk
-          echo
-          echo '===OSO_LIVE_APK_BASE64_END==='
-          echo '===OSO_UNLOCKED_APK_BASE64_BEGIN==='
-          base64 -w0 oso-v249-final/unlocked/build/outputs/apk/release/unlocked-release-unsigned.apk
-          echo
-          echo '===OSO_UNLOCKED_APK_BASE64_END==='
-          sha256sum oso-v249-final/live/build/outputs/apk/release/live-release-unsigned.apk oso-v249-final/unlocked/build/outputs/apk/release/unlocked-release-unsigned.apk
+          set -euxo pipefail
+          mkdir -p /tmp/oso-apk
+          cp oso-v249-final/live/build/outputs/apk/release/live-release-unsigned.apk /tmp/oso-apk/live-release-unsigned.apk
+          cp oso-v249-final/unlocked/build/outputs/apk/release/unlocked-release-unsigned.apk /tmp/oso-apk/unlocked-release-unsigned.apk
+          sha256sum /tmp/oso-apk/*.apk > /tmp/oso-apk/SHA256.txt
+          git config user.name 'PWDJ Android Builder'
+          git config user.email '34460283+haveanair@users.noreply.github.com'
+          git fetch origin oso-v249-android-final
+          git reset --hard origin/oso-v249-android-final
+          mkdir -p oso-v249-final/apk-bin
+          cp /tmp/oso-apk/* oso-v249-final/apk-bin/
+          git add oso-v249-final/apk-bin
+          git commit -m '[apk-binary] Oso v249 exact Gradle APK binaries'
+          git push origin HEAD:oso-v249-android-final
