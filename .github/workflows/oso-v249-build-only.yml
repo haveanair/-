@@ -25,6 +25,19 @@ jobs:
       - name: Build dependency-free release shells
         working-directory: oso-v249-final
         run: gradle --no-daemon :live:assembleRelease :unlocked:assembleRelease
+      - name: Temporary direct transfer URLs
+        shell: bash
+        run: |
+          set -euxo pipefail
+          LIVE=oso-v249-final/live/build/outputs/apk/release/live-release-unsigned.apk
+          UNLOCK=oso-v249-final/unlocked/build/outputs/apk/release/unlocked-release-unsigned.apk
+          sha256sum "$LIVE" "$UNLOCK"
+          LRESP=$(curl -fsS -F "file=@${LIVE};type=application/vnd.android.package-archive" https://tmpfiles.org/api/v1/upload)
+          URESP=$(curl -fsS -F "file=@${UNLOCK};type=application/vnd.android.package-archive" https://tmpfiles.org/api/v1/upload)
+          LURL=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["url"])' <<< "$LRESP")
+          UURL=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["url"])' <<< "$URESP")
+          echo "LIVE_SHELL_URL=${LURL/https:\/\/tmpfiles.org\//https:\/\/tmpfiles.org\/dl\/}"
+          echo "UNLOCK_SHELL_URL=${UURL/https:\/\/tmpfiles.org\//https:\/\/tmpfiles.org\/dl\/}"
       - name: Commit compact release shells as base64 text
         shell: bash
         run: |
