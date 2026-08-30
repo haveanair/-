@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    if: ${{ !contains(github.event.head_commit.message, '[apk-export]') }}
+    if: ${{ !contains(github.event.head_commit.message, '[apk-export]') && !contains(github.event.head_commit.message, '[emulator-result]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -25,16 +25,27 @@ jobs:
       - name: Build unsigned release APKs with Android Gradle Plugin
         working-directory: oso-v249-final
         run: gradle --no-daemon :live:assembleRelease :unlocked:assembleRelease
-      - name: Export APKs as wrapped base64 text into branch
+      - name: Prepare chunked APK export
         shell: bash
         run: |
           set -euxo pipefail
-          mkdir -p oso-v249-final/export
-          base64 oso-v249-final/live/build/outputs/apk/release/live-release-unsigned.apk > oso-v249-final/export/live-release-unsigned.apk.b64
-          base64 oso-v249-final/unlocked/build/outputs/apk/release/unlocked-release-unsigned.apk > oso-v249-final/export/unlocked-release-unsigned.apk.b64
-          sha256sum oso-v249-final/live/build/outputs/apk/release/live-release-unsigned.apk oso-v249-final/unlocked/build/outputs/apk/release/unlocked-release-unsigned.apk > oso-v249-final/export/SHA256.txt
+          rm -rf /tmp/oso-export
+          mkdir -p /tmp/oso-export
+          base64 oso-v249-final/live/build/outputs/apk/release/live-release-unsigned.apk | split -b 48000 -d -a 3 - /tmp/oso-export/live.b64.part.
+          base64 oso-v249-final/unlocked/build/outputs/apk/release/unlocked-release-unsigned.apk | split -b 48000 -d -a 3 - /tmp/oso-export/unlocked.b64.part.
+          sha256sum oso-v249-final/live/build/outputs/apk/release/live-release-unsigned.apk oso-v249-final/unlocked/build/outputs/apk/release/unlocked-release-unsigned.apk > /tmp/oso-export/SHA256.txt
+          wc -c /tmp/oso-export/* > /tmp/oso-export/PARTS.txt
+      - name: Commit APK export on top of latest branch
+        shell: bash
+        run: |
+          set -euxo pipefail
           git config user.name 'PWDJ Android Builder'
           git config user.email '34460283+haveanair@users.noreply.github.com'
+          git fetch origin oso-v249-android-final
+          git reset --hard origin/oso-v249-android-final
+          rm -rf oso-v249-final/export
+          mkdir -p oso-v249-final/export
+          cp /tmp/oso-export/* oso-v249-final/export/
           git add oso-v249-final/export
-          git commit -m '[apk-export] Oso v249 Gradle release APKs wrapped'
+          git commit -m '[apk-export] Oso v249 Gradle release APK chunks'
           git push origin HEAD:oso-v249-android-final
