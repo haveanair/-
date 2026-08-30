@@ -1,0 +1,80 @@
+name: Oso v249 Android Gradle + Emulator
+
+on:
+  push:
+    branches: [oso-v249-android-final]
+  workflow_dispatch:
+
+jobs:
+  build-and-launch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug and unsigned release APKs
+        working-directory: oso-v249-final
+        run: |
+          gradle --no-daemon :live:assembleDebug :live:assembleRelease :unlocked:assembleDebug :unlocked:assembleRelease
+          find live/build/outputs/apk unlocked/build/outputs/apk -type f -name '*.apk' -print -exec ls -lh {} \;
+
+      - name: Launch both apps in Android 15 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            set -euxo pipefail
+            adb install -r oso-v249-final/live/build/outputs/apk/debug/live-debug.apk
+            adb logcat -c
+            adb shell am force-stop com.powerduck.jinjugame.live || true
+            adb shell am start -W -n com.powerduck.jinjugame.live/com.powerduck.jinjugame.MainActivity | tee oso-v249-final/live-start.txt
+            sleep 7
+            LIVE_PID="$(adb shell pidof com.powerduck.jinjugame.live | tr -d '\r')"
+            echo "LIVE_PID=$LIVE_PID" | tee oso-v249-final/live-pid.txt
+            test -n "$LIVE_PID"
+            adb exec-out screencap -p > oso-v249-final/live-screen.png
+            adb logcat -d > oso-v249-final/live-logcat.txt
+            if grep -A20 -B5 'FATAL EXCEPTION' oso-v249-final/live-logcat.txt | grep -q 'com.powerduck.jinjugame.live'; then exit 41; fi
+
+            adb install -r oso-v249-final/unlocked/build/outputs/apk/debug/unlocked-debug.apk
+            adb logcat -c
+            adb shell am force-stop com.powerduck.jinjugame.unlocked || true
+            adb shell am start -W -n com.powerduck.jinjugame.unlocked/com.powerduck.jinjugame.MainActivity | tee oso-v249-final/unlocked-start.txt
+            sleep 7
+            UNLOCK_PID="$(adb shell pidof com.powerduck.jinjugame.unlocked | tr -d '\r')"
+            echo "UNLOCK_PID=$UNLOCK_PID" | tee oso-v249-final/unlocked-pid.txt
+            test -n "$UNLOCK_PID"
+            adb exec-out screencap -p > oso-v249-final/unlocked-screen.png
+            adb logcat -d > oso-v249-final/unlocked-logcat.txt
+            if grep -A20 -B5 'FATAL EXCEPTION' oso-v249-final/unlocked-logcat.txt | grep -q 'com.powerduck.jinjugame.unlocked'; then exit 42; fi
+
+      - name: Upload APKs and launch evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oso-v249-gradle-build
+          if-no-files-found: ignore
+          path: |
+            oso-v249-final/live/build/outputs/apk/debug/live-debug.apk
+            oso-v249-final/live/build/outputs/apk/release/live-release-unsigned.apk
+            oso-v249-final/unlocked/build/outputs/apk/debug/unlocked-debug.apk
+            oso-v249-final/unlocked/build/outputs/apk/release/unlocked-release-unsigned.apk
+            oso-v249-final/*-start.txt
+            oso-v249-final/*-pid.txt
+            oso-v249-final/*-screen.png
+            oso-v249-final/*-logcat.txt
