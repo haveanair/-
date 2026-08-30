@@ -4,11 +4,11 @@ android {
  namespace 'com.powerduck.jinjugame'
  compileSdk 35
  defaultConfig {
-  applicationId 'com.powerduck.jinjugame.live'
+  applicationId 'com.powerduck.jinjugame.live249'
   minSdk 26
-  targetSdk 35
-  versionCode 104
-  versionName '2.4.9-live-gradle'
+  targetSdk 28
+  versionCode 105
+  versionName '2.4.9-live-verified-shell'
  }
  sourceSets {
   main.java.srcDirs = ['../common-src']
@@ -21,7 +21,4 @@ android {
  buildTypes { release { minifyEnabled false } }
 }
 
-dependencies {
- implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
- implementation 'com.google.zxing:core:3.5.3'
-}
+dependencies { }
