@@ -5,7 +5,7 @@
  <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
  <uses-permission android:name="android.permission.CAMERA"/>
  <uses-feature android:name="android.hardware.camera" android:required="false"/>
- <application android:theme="@style/AppTheme" android:label="어서오소! 중앙시장 해금판" android:icon="@android:drawable/sym_def_app_icon" android:hardwareAccelerated="true">
+ <application android:theme="@style/AppTheme" android:label="어서오소! 중앙시장 해금판" android:icon="@drawable/ic_launcher" android:roundIcon="@drawable/ic_launcher" android:hardwareAccelerated="true">
   <activity android:name=".MainActivity" android:screenOrientation="portrait" android:exported="true">
    <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
   </activity>
