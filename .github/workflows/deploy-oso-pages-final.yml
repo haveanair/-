@@ -1,0 +1,40 @@
+name: Deploy Oso v249 Pages Final
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.deploy/READY'
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check payload
+        id: check
+        shell: bash
+        run: |
+          if [ -f .deploy/READY ]; then echo "ready=yes" >> "$GITHUB_OUTPUT"; else echo "ready=no" >> "$GITHUB_OUTPUT"; fi
+      - name: Rebuild final Pages site
+        if: steps.check.outputs.ready == 'yes'
+        shell: bash
+        run: |
+          set -euo pipefail
+          TMP="$(mktemp -d)"
+          cat .deploy/site-* | base64 -d > "$TMP/site.tar.gz"
+          mkdir -p "$TMP/site"
+          tar -xzf "$TMP/site.tar.gz" -C "$TMP/site"
+          mkdir -p "$TMP/site/play"
+          cat .deploy/game-* | base64 -d | gzip -d > "$TMP/site/play/index.html"
+          rsync -a --delete --exclude='.git' --exclude='.github' "$TMP/site/" ./
+          git config user.name "PWDJ Pages Builder"
+          git config user.email "34460283+haveanair@users.noreply.github.com"
+          git add -A
+          git commit -m "Deploy Oso v249 WEB FINAL" || exit 0
+          git push
