@@ -1,0 +1,2 @@
+Temporary trigger for isolated mGBA runtime used in V-Rally execution verification. No ROM data is stored here.
+10K transfer staging: 2026-08-20 00:12 KST.
